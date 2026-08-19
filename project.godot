@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="dog"
+config/name="Dog"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 
@@ -18,6 +18,10 @@ config/icon="res://icon.svg"
 
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/dog/plugin.cfg")
 
 [physics]
 
