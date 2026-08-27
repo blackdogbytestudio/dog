@@ -1,6 +1,6 @@
 @tool
 class_name DogAutoloadInstaller
-extends DogEditor
+extends DogInstaller
 
 ## Default autoload scripts shipped with the addon; copied out on first install.
 const AUTOLOAD_SRC := "res://addons/dog/scripts/autoloads"

@@ -13,13 +13,10 @@ extends DogBody2D
  
 var _jumps_remaining: int = max_jumps
  
-
-
- 
 ## Applies the jump impulse to the host and consumes one jump.
 ## Callers must check [method can_jump] first.
 func jump() -> void:
-	host().velocity.y = -jump_force
+	host.velocity.y = -jump_force
 	_jumps_remaining -= 1
  
  

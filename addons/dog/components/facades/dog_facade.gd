@@ -28,6 +28,7 @@ extends DogComponent
 func _enter_tree() -> void:
 	dog_leash()
 
+
 ## Abstract — subclasses MUST override this and call super.dog_leash(...)
 ## passing every sub-component they own.
 func dog_leash(...components: Array) -> void:
@@ -38,7 +39,7 @@ func dog_leash(...components: Array) -> void:
 		if not c is DogComponent:
 			push_error("%s: dog_leash() received a non-DogComponent (%s)" % [get_script().get_global_name(), c])
 			continue
-		c.name = c.get_script().get_global_name()
-		c.set_host(host())
 		if not c.get_parent():
 			add_child(c)
+			c.owner = owner
+			c.name = c.get_script().get_global_name()

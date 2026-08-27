@@ -1,6 +1,6 @@
 @tool
 class_name DogTemplateInstaller
-extends DogEditor
+extends DogInstaller
 
 const TEMPLATE_SRC := "res://addons/dog/script_templates"
 const TEMPLATE_DEST := "res://script_templates"

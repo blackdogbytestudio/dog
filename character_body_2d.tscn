@@ -1,7 +1,8 @@
 [gd_scene format=3 uid="uid://cqlecoejonvbp"]
 
-[ext_resource type="Script" uid="uid://bakl1kvw5wqve" path="res://addons/dog/components/facades/dog_platformer_facade.gd" id="1_f50pn"]
+[ext_resource type="Script" uid="uid://643u2r7to2n1" path="res://addons/dog/components/facades/dog_platformer_facade.gd" id="1_f50pn"]
 [ext_resource type="Script" uid="uid://cvrmvkqcasvjc" path="res://character_body_2d.gd" id="1_ij6vw"]
+[ext_resource type="Script" uid="uid://bsqpdvdn6kkgr" path="res://addons/dog/components/2d/body/dog_jump_2d.gd" id="3_ghijl"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_y32ns"]
 
@@ -13,5 +14,10 @@ shape = SubResource("RectangleShape2D_y32ns")
 
 [node name="DogPlatformerFacade" type="Node" parent="." unique_id=1993967131]
 script = ExtResource("1_f50pn")
+max_jumps = 2
+jump_force = -4.0
+
+[node name="DogJump2D" type="Node" parent="DogPlatformerFacade" unique_id=2031869441]
+script = ExtResource("3_ghijl")
 max_jumps = 2
 jump_force = -4.0

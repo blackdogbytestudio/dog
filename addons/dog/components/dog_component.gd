@@ -1,44 +1,51 @@
 @tool
 class_name DogComponent
 extends Node
-## Base class for all components in Dog.
+## Base class for all components.
 ##
-## Dog it's your best friend. Components exist to run the host's logic
-## and calculations. The host has to be of a type other than null.
+## Dog it's your best friend. It can encapsulate a specific behavior
+## for its host. The host has to be of a type other than null.
 ## [br][br]
-## A component is meant to be unique on its host, you can have
+## It is expected that subclasses override [method host_type] with a strict type, 
+## allowing the framework to validate the host structure automatically.
+## [br][br]
+## [b]Example:[/b]
+## [codeblock]
+## # Inside a custom component (e.g., DogBody2D)
+## var host: CharacterBody2D:
+##     get: return host_type()
+##
+## func host_type() -> CharacterBody2D:
+##     return owner
+## [/codeblock]
+##[br][br]
+## [b]Note:[/b] A component is meant to be unique on its host, you can have
 ## multiple different types, but not two of the same type. If you
 ## want more functionality, or want to disable one, prefer creating
 ## a new component that extends the previous one.
-
-var host: Node = owner:
-	set = set_host,
-	get = get_host
 
 func _get_configuration_warnings() -> PackedStringArray:
 	return _validate_host()
 
 
-func get_host() -> Node:
-	return owner as Node
-
-func set_host(host: Node) -> void:
-	owner = host
+## Override to define the type of expected host/owner.
+func host_type() -> Node:
+	return owner
 
 
 func _validate_host() -> PackedStringArray:
-	if not host:
+	if not host_type():
 		var expected_type: String = "Node"
 		
 		for method in get_method_list():
-			if method.name == "host":
+			if method.name == "host_type":
 				var return_info: Dictionary = method["return"]
 				if return_info.has("class_name") and return_info["class_name"] != &"":
 					expected_type = return_info["class_name"]
 				break
 				
 		return [
-			"This component needs a host as %s. Either place it under an owner of that type, or call set_host()." % expected_type
+			"This component needs a host as %s." % expected_type
 		]
 		
 	return []

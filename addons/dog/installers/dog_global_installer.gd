@@ -1,6 +1,6 @@
 @tool
 class_name DogGlobalsInstaller
-extends DogEditor
+extends DogInstaller
 
 const GLOBALS_SRC := "res://addons/dog/globals"
 const GLOBALS_DEST := "res://globals"

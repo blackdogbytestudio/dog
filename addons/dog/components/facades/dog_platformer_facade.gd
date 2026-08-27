@@ -31,25 +31,12 @@ extends DogFacade
 
 var _jump: DogJump2D = DogJump2D.new()
 
-func set_owner(o):
-	print("set_owner CHAMADO com: ", o)
-
-func owner():
-	print("oh yes")
-	pass
-
-
-func _ready() -> void:
-	print("antes: ", owner())
-	print("depois: ", owner)
+func get_host() -> CharacterBody2D:
+	return owner
 
 
 func dog_leash(...components: Array) -> void:
 	super.dog_leash(_jump)
-
-
-func host() -> CharacterBody2D:
-	return super.host() as CharacterBody2D
 
 
 func jump() -> void:

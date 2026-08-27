@@ -1,6 +1,6 @@
 @tool
 class_name DogScaffoldInstaller
-extends DogEditor
+extends DogInstaller
 
 ## Default scaffold shipped with the addon; copied out on first install.
 const SCAFFOLD_SRC := "res://addons/dog/scaffold.json"
