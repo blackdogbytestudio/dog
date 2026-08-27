@@ -1,3 +1,4 @@
+@tool
 class_name DogFSM
 extends DogMachine
 ## DogFSM — flat finite state machine.

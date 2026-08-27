@@ -1,3 +1,4 @@
+@tool
 class_name DogHPDA
 extends DogPDA
 ## DogHPDA — hierarchical pushdown automaton component.
@@ -31,7 +32,7 @@ func init(initial: DogState, host: Node) -> void:
 	if hpda_state == null:
 		push_error("DogHPDA: state must extend DogHPDAState.")
 		return
-	_host = host
+	set_host(host)
 	push(hpda_state)
 
 

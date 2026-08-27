@@ -1,3 +1,4 @@
+@tool
 class_name DogHFSM
 extends DogFSM
 ## DogHFSM — hierarchical state machine component.

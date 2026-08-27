@@ -1,3 +1,4 @@
+@tool
 class_name DogMachine
 extends DogComponent
 ## DogMachine — base for all state machine components.
@@ -6,9 +7,6 @@ extends DogComponent
 ## send(state) forces an immediate transition from outside,
 ## bypassing locked on the current state.
 
-## The actor that owns this machine.
-## Game code should shadow this with a typed var:
-##   var _host: Player
 var _host: Node
 
 ## The currently active state.
@@ -17,9 +15,9 @@ var _current: DogState
 ## Initialise the machine with a starting state and actor reference.
 ##   fsm.init(state_idle, self)
 func init(initial: DogState, host: Node) -> void:
-	_host  = host
+	set_host(host)
 	_current = initial
-	_current.enter(_host)
+	_current.enter(host())
 
 
 ## Drive the active state. Call from the actor's _process:
@@ -27,7 +25,7 @@ func init(initial: DogState, host: Node) -> void:
 func update(delta: float) -> void:
 	if _current == null:
 		return
-	var next: DogState = _current.update(_host, delta)
+	var next: DogState = _current.update(host(), delta)
 	if next != null:
 		_transition(next)
 
@@ -39,6 +37,6 @@ func _transition(next: DogState) -> void:
 	if _current != null:
 		if _current.get_class() == next.get_class():
 			return
-		_current.exit(_host)
+		_current.exit(host())
 	_current = next
-	_current.enter(_host)
+	_current.enter(host())

@@ -1,0 +1,33 @@
+{
+	"assets": {
+		"sprites": {
+			"characters": {
+				"player": {},
+				"enemies": {}
+			},
+			"environment": {
+				"tilesets": {}
+			},
+			"ui": {},
+			"fx": {}
+		},
+		"sfx": {
+			"characters": {},
+			"ui": {},
+			"environment": {}
+		},
+		"music": {},
+		"fonts": {}
+	},
+	"scenes": {
+		"characters": {
+			"player": {},
+			"enemies": {}
+		},
+		"levels": {
+			"tilemaps": {}
+		},
+		"ui": {},
+		"placeholders": {}
+	}
+}

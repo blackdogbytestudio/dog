@@ -1,3 +1,6 @@
+@tool
+class_name DogPDA
+extends DogMachine
 ## DogPDA — pushdown automaton component.
 ## Expects DogPDAState instances so pause and resume are available.
 ##
@@ -21,8 +24,6 @@
 ##
 ##   func _on_resume_pressed():
 ##       pda.pop()
-class_name DogPDA
-extends DogMachine
 
 
 var _stack: Array[DogPDAState] = []
@@ -30,7 +31,7 @@ var _stack: Array[DogPDAState] = []
 
 ## Init: push the initial state as the first stack entry.
 func init(initial: DogState, host: Node) -> void:
-	_host = host
+	set_host(host)
 	push(initial as DogPDAState)
 
 
@@ -38,10 +39,10 @@ func init(initial: DogState, host: Node) -> void:
 ## Current state is paused (not exited) — it stays on the stack.
 func push(state: DogPDAState) -> void:
 	if _current != null:
-		(_current as DogPDAState).pause(_host)
+		(_current as DogPDAState).pause(host())
 	_stack.push_back(state)
 	_current = state
-	_current.enter(_host)
+	_current.enter(host())
 
 
 ## Pop the top state.
@@ -50,10 +51,10 @@ func pop() -> void:
 	if _stack.size() <= 1:
 		push_warning("DogPDA: cannot pop the last state.")
 		return
-	_current.exit(_host)
+	_current.exit(host())
 	_stack.pop_back()
 	_current = _stack.back()
-	(_current as DogPDAState).resume(_host)
+	(_current as DogPDAState).resume(host())
 
 
 ## Peek at the state below the top without popping.
@@ -71,7 +72,7 @@ func depth() -> int:
 ## send() replaces the top of the stack — not a push.
 ## Goes through exit → enter, not pause → resume.
 func _transition(next: DogState) -> void:
-	_current.exit(_host)
+	_current.exit(host())
 	_stack[_stack.size() - 1] = next as DogPDAState
 	_current = next
-	_current.enter(_host)
+	_current.enter(host())

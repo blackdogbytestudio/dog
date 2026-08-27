@@ -11,20 +11,34 @@ extends Node
 ## want more functionality, or want to disable one, prefer creating
 ## a new component that extends the previous one.
 
-## The node that owns this component. Set from [member Node.owner]
-## on [method _ready]; guaranteed non-null once the game is running.
-var host: Node
-
-func _ready() -> void:
-	host = owner
-	if Engine.is_editor_hint():
-		return
-	if host == null:
-		push_error("%s needs a host." % name)
-
+var host: Node = owner:
+	set = set_host,
+	get = get_host
 
 func _get_configuration_warnings() -> PackedStringArray:
-	var warnings: PackedStringArray = []
-	if owner == null:
-		warnings.append("This component needs a host.")
-	return warnings
+	return _validate_host()
+
+
+func get_host() -> Node:
+	return owner as Node
+
+func set_host(host: Node) -> void:
+	owner = host
+
+
+func _validate_host() -> PackedStringArray:
+	if not host:
+		var expected_type: String = "Node"
+		
+		for method in get_method_list():
+			if method.name == "host":
+				var return_info: Dictionary = method["return"]
+				if return_info.has("class_name") and return_info["class_name"] != &"":
+					expected_type = return_info["class_name"]
+				break
+				
+		return [
+			"This component needs a host as %s. Either place it under an owner of that type, or call set_host()." % expected_type
+		]
+		
+	return []
