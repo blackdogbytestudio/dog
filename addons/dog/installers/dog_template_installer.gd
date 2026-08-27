@@ -2,21 +2,26 @@
 class_name DogTemplateInstaller
 extends DogInstaller
 
-const TEMPLATE_SRC := "res://addons/dog/script_templates"
-const TEMPLATE_DEST := "res://script_templates"
+const TEMPLATE_SRC: String = "res://addons/dog/script_templates"
+const TEMPLATE_DEST: String = "res://script_templates"
 
 static func install() -> void:
-	var src := DirAccess.open(TEMPLATE_SRC)
+	if not DirAccess.dir_exists_absolute(TEMPLATE_DEST):
+		DirAccess.make_dir_recursive_absolute(TEMPLATE_DEST)
+		
+	var src: DirAccess = DirAccess.open(TEMPLATE_SRC)
 	if not src:
+		push_warning("DOG_WARNING: script_templates not found at %s" % TEMPLATE_SRC)
 		return
-
+		
 	for family in src.get_directories():
-		var dest_dir := "%s/%s" % [TEMPLATE_DEST, family]
-		DirAccess.make_dir_recursive_absolute(dest_dir)
-
-		var family_dir := DirAccess.open("%s/%s" % [TEMPLATE_SRC, family])
+		var dest_dir: String = "%s/%s" % [TEMPLATE_DEST, family]
+		if not DirAccess.dir_exists_absolute(dest_dir):
+			DirAccess.make_dir_recursive_absolute(dest_dir)
+			
+		var family_dir: DirAccess = DirAccess.open("%s/%s" % [TEMPLATE_SRC, family])
 		for file in family_dir.get_files():
-			var dest_file := "%s/%s" % [dest_dir, file]
+			var dest_file: String = "%s/%s" % [dest_dir, file]
 			if FileAccess.file_exists(dest_file):
 				continue
 			DirAccess.copy_absolute(

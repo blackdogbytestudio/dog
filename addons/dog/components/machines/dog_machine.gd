@@ -7,17 +7,18 @@ extends DogComponent
 ## send(state) forces an immediate transition from outside,
 ## bypassing locked on the current state.
 
-var _host: Node
+var host: Node:
+	get: return host_type()
 
 ## The currently active state.
 var _current: DogState
 
 ## Initialise the machine with a starting state and actor reference.
 ##   fsm.init(state_idle, self)
-func init(initial: DogState, host: Node) -> void:
-	set_host(host)
-	_current = initial
-	_current.enter(host())
+func init(state: DogState) -> void:
+	owner = host
+	_current = state
+	_current.enter(host)
 
 
 ## Drive the active state. Call from the actor's _process:
@@ -25,7 +26,7 @@ func init(initial: DogState, host: Node) -> void:
 func update(delta: float) -> void:
 	if _current == null:
 		return
-	var next: DogState = _current.update(host(), delta)
+	var next: DogState = _current.update(host, delta)
 	if next != null:
 		_transition(next)
 
@@ -37,6 +38,6 @@ func _transition(next: DogState) -> void:
 	if _current != null:
 		if _current.get_class() == next.get_class():
 			return
-		_current.exit(host())
+		_current.exit(host)
 	_current = next
-	_current.enter(host())
+	_current.enter(host)

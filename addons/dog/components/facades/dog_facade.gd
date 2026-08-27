@@ -3,34 +3,36 @@ class_name DogFacade
 extends DogComponent
 ## Base class for facade components.
 ##
-## A facade owns and composes several sub-components internally,
-## then exposes a single, flattened [code]@export[/code] surface for them
-## on itself. Callers only ever talk to the facade — they never touch
-## the sub-components directly.
-## [br][br]
-## Override [method dog_leash] to register every sub-component this facade
-## owns, e.g.:
-## [codeblock]
-## func dog_leash(...) -> void:
-##     super.dog_leash(_jump, _move, _gravity)
-## [/codeblock]
-## [br][br]
-## [b]Export setters that reach into a sub-component must guard for it not
-## existing yet[/b]:
+## The Facade orchestrates multiple components and exposes a
+## single, flattened [code]@export[/code] surface for them.
+##
+## This centralizes and simplifies the interface of components
+## that converge with one another. It prevents polluting
+## the host/owner tree with dozens of exposed nodes.
+## after _ready():
 ## [codeblock]
 ## @export var max_jumps: int = 1:
 ##     set(value):
 ##         max_jumps = value
-##         if _jump:
-##             _jump.max_jumps = value
+##         _jump.max_jumps = value
+##
+## var _jump: JumpComponent = JumpComponent.new()
 ## [/codeblock]
+## [b]Note:[/b] don't use @onready for component vars, the var must
+## exist before the @export setter runs, and @onready only resolves
+## after _ready():
 
 func _enter_tree() -> void:
 	dog_leash()
 
 
-## Abstract — subclasses MUST override this and call super.dog_leash(...)
-## passing every sub-component they own.
+## Registers components to the facade.
+## The components host/owner is assings as [member DogComponent.host_type]
+##
+## [codeblock]
+## func dog_leash() -> void:
+##     super.dog_leash([_jump, _move, _gravity])
+## [/codeblock]
 func dog_leash(...components: Array) -> void:
 	if components.is_empty():
 		push_error("%s: must override dog_leash() and register its components" % [get_script().get_global_name()])
@@ -41,5 +43,5 @@ func dog_leash(...components: Array) -> void:
 			continue
 		if not c.get_parent():
 			add_child(c)
-			c.owner = owner
+			c.owner = host_type()
 			c.name = c.get_script().get_global_name()

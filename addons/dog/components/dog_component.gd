@@ -11,7 +11,7 @@ extends Node
 ## [br][br]
 ## [b]Example:[/b]
 ## [codeblock]
-## # Inside a custom component (e.g., DogBody2D)
+## # Inside a custom component (e.g., [DogBody2D])
 ## var host: CharacterBody2D:
 ##     get: return host_type()
 ##
