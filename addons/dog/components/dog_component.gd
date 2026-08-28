@@ -3,7 +3,7 @@ class_name DogComponent
 extends Node
 ## Base class for all components.
 ##
-## Dog it's your best friend. It can encapsulate a specific behavior
+## Dog is your best friend. It can encapsulate a specific behavior
 ## for its host. The host has to be of a type other than null.
 ## [br][br]
 ## It is expected that subclasses override [method host_type] with a strict type, 

@@ -1,5 +1,5 @@
 @tool
-class_name DogBody2D
+class_name DogCharacter2D
 extends DogComponent
 ## Specialized [DogComponent] with a pre-typed host for [CharacterBody2D].
 
