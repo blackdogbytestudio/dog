@@ -60,7 +60,7 @@ var _move: DogMove2D = DogMove2D.new()
 var _gravity: DogGravity2D = DogGravity2D.new()
 
 func dog_leash(...components: Array) -> void:
-	super.dog_leash([_jump, _move, _gravity])
+	super.dog_leash(_jump, _move, _gravity)
 
 
 func jump() -> void:

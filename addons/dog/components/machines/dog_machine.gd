@@ -1,11 +1,7 @@
 @tool
 class_name DogMachine
 extends DogComponent
-## DogMachine — base for all state machine components.
-## Lives in the scene tree as a child Node of the actor.
-## The actor calls update(delta) explicitly — no _process here.
-## send(state) forces an immediate transition from outside,
-## bypassing locked on the current state.
+## Base for all state machine components.
 
 var host: Node:
 	get: return host_type()
@@ -13,8 +9,10 @@ var host: Node:
 ## The currently active state.
 var _current: DogState
 
-## Initialise the machine with a starting state and actor reference.
-##   fsm.init(state_idle, self)
+## Initialise the machine with a starting state reference.
+## [codeblock]
+## func _
+##   fsm.init(state_idle)
 func init(state: DogState) -> void:
 	owner = host
 	_current = state
