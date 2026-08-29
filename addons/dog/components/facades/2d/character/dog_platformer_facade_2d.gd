@@ -50,10 +50,10 @@ extends DogCharacterFacade2D
 		_move.friction = value
 
 @export_group("Gravity")
-@export var gravity_scale: float = 1.0:
+@export var gravity: float = 1.0:
 	set(value):
-		gravity_scale = value
-		_gravity.gravity_scale = value
+		gravity = value
+		_gravity.gravity = value
 
 var _jump: DogJump2D = DogJump2D.new()
 var _move: DogMove2D = DogMove2D.new()

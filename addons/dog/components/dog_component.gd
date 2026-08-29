@@ -41,9 +41,7 @@ func _validate_host() -> PackedStringArray:
 				if return_info.has("class_name") and return_info["class_name"] != &"":
 					expected_type = return_info["class_name"]
 				break
-				
 		return [
 			"This component needs a host as %s." % expected_type
 		]
-		
 	return []

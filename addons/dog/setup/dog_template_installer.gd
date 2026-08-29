@@ -1,8 +1,11 @@
 @tool
 class_name DogTemplateInstaller
-extends DogInstaller
+extends DogSetup
 
+## Default templates folder path inside the addon.
 const TEMPLATE_SRC: String = "res://addons/dog/script_templates"
+
+## User-editable templates folder path required by Godot.
 const TEMPLATE_DEST: String = "res://script_templates"
 
 static func install() -> void:
@@ -24,6 +27,7 @@ static func install() -> void:
 			var dest_file: String = "%s/%s" % [dest_dir, file]
 			if FileAccess.file_exists(dest_file):
 				continue
+				
 			DirAccess.copy_absolute(
 				"%s/%s/%s" % [TEMPLATE_SRC, family, file],
 				dest_file

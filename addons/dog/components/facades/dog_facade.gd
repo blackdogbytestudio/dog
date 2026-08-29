@@ -33,7 +33,7 @@ func _enter_tree() -> void:
 ##
 ## [codeblock]
 ## func dog_leash() -> void:
-##     super.dog_leash([_jump, _move, _gravity])
+##     super.dog_leash(_jump, _move, _gravity)
 ## [/codeblock]
 func dog_leash(...components: Array) -> void:
 	if components.is_empty():
@@ -44,6 +44,6 @@ func dog_leash(...components: Array) -> void:
 			push_error("%s: dog_leash() received a non-DogComponent (%s)" % [get_script().get_global_name(), c])
 			continue
 		if not c.get_parent():
-			add_child(c)
+			add_child(c, false, Node.INTERNAL_MODE_BACK)
 			c.owner = host_type()
 			c.name = c.get_script().get_global_name()

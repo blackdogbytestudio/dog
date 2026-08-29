@@ -17,7 +17,6 @@ var _current: DogState
 ##   fsm.init(idle_state)
 ## [/codeblock]
 func init(state: DogState) -> void:
-	owner = host
 	_current = state
 	_current.enter(host)
 
@@ -40,7 +39,7 @@ func _transition(next: DogState) -> void:
 	if next == null:
 		return
 	if _current != null:
-		if _current.get_class() == next.get_class():
+		if _current.get_script() == next.get_script():
 			return
 		_current.exit(host)
 	_current = next

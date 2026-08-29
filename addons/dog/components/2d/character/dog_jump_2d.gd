@@ -2,7 +2,10 @@ class_name DogJump2D
 extends DogCharacter2D
 ## Jump logic for a [CharacterBody2D].
 
-@export var max_jumps: int = 1
+@export var max_jumps: int = 1:
+	set(value):
+		max_jumps = value
+		_jumps_remaining = value
 @export var jump_force: float = 400.0
 @export var coyote_time: float = 0.15
 @export var jump_buffer_time: float = 0.1

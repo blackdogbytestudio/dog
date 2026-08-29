@@ -64,6 +64,10 @@ func depth() -> int:
 
 
 func _transition(next: DogState) -> void:
+	if next == null:
+		return
+	if _current.get_script() == next.get_script():
+		return
 	_current.exit(host)
 	_stack[_stack.size() - 1] = next as DogPDAState
 	_current = next

@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://cqlecoejonvbp"]
+
+[ext_resource type="Script" uid="uid://cvrmvkqcasvjc" path="res://character_body_2d.gd" id="1_ij6vw"]
+[ext_resource type="Script" uid="uid://643u2r7to2n1" path="res://addons/dog/components/facades/2d/character/dog_platformer_facade_2d.gd" id="2_ghijl"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_te840"]
+
+[node name="CharacterBody2D" type="CharacterBody2D" unique_id=771242616]
+script = ExtResource("1_ij6vw")
+
+[node name="DogPlatformerFacade2D" type="Node" parent="." unique_id=71067617]
+script = ExtResource("2_ghijl")
+max_jumps = 3
+metadata/_custom_type_script = "uid://643u2r7to2n1"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1029945894]
+shape = SubResource("RectangleShape2D_te840")
