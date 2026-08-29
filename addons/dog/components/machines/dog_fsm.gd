@@ -3,38 +3,41 @@ class_name DogFSM
 extends DogMachine
 ## DogFSM — flat finite state machine.
 ## States return the next DogState from update() to transition.
-## send() forces a transition from outside at any time.
+## force() transitions from the outside at any time.
 ##
-## Usage in actor:
-##   @onready var fsm: DogFSM = $DogFSM
-##   var state_idle  = StateIdle.new()
-##   var state_walk  = StateWalk.new()
-##   var state_hurt  = StateHurt.new()
+## [codeblock]
+## func _ready() -> void:
+##   fsm.init(idle_state)
 ##
-##   func _ready():
-##       fsm.init(state_idle, self)
+## func _process(delta: float) -> void:
+##   fsm.update(delta)
 ##
-##   func _process(delta):
-##       fsm.update(delta)
-##
-##   func _on_hitbox():
-##       fsm.send(state_hurt)
+## func _on_hitbox_area_entered(_area: Area2D) -> void:
+##   fsm.force(hurt_state)
+## [/codeblock]
 
 var _locked: bool = false
 
-## Force an immediate transition to state, bypassing locked.
-## Use this from signals, hitboxes, external events:
-##   fsm.force(state_hurt)
+## Force an immediate transition, bypassing locked.
 func force(state: DogState) -> void:
 	if state == null:
-		push_warning("DogMachine: force received null state.")
+		push_warning("DOG_WARNING: force() received null state.")
 		return
 	_transition(state)
 
+
+## Locks the machine.
 func lock() -> void:
 	if not _locked:
 		_locked = true
 
+
+## Unlocks the machine.
 func unlock() -> void:
 	if _locked:
 		_locked = false
+
+
+## Whether the machine is locked.
+func is_locked() -> bool:
+	return _locked

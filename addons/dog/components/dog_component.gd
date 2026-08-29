@@ -8,17 +8,15 @@ extends Node
 ## [br][br]
 ## It is expected that subclasses override [method host_type] with a strict type, 
 ## allowing the framework to validate the host structure automatically.
-## [br][br]
-## [b]Example:[/b]
+##
 ## [codeblock]
-## # Inside a custom component (e.g., [DogBody2D])
 ## var host: CharacterBody2D:
 ##     get: return host_type()
 ##
 ## func host_type() -> CharacterBody2D:
 ##     return owner
 ## [/codeblock]
-##[br][br]
+##
 ## [b]Note:[/b] A component is meant to be unique on its host, you can have
 ## multiple different types, but not two of the same type. If you
 ## want more functionality, or want to disable one, prefer creating

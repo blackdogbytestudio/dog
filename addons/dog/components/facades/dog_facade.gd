@@ -10,6 +10,7 @@ extends DogComponent
 ## that converge with one another. It prevents polluting
 ## the host/owner tree with dozens of exposed nodes.
 ## after _ready():
+##
 ## [codeblock]
 ## @export var max_jumps: int = 1:
 ##     set(value):
@@ -18,6 +19,7 @@ extends DogComponent
 ##
 ## var _jump: JumpComponent = JumpComponent.new()
 ## [/codeblock]
+##
 ## [b]Note:[/b] don't use @onready for component vars, the var must
 ## exist before the @export setter runs, and @onready only resolves
 ## after _ready():

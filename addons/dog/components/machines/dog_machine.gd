@@ -3,24 +3,31 @@ class_name DogMachine
 extends DogComponent
 ## Base for all state machine components.
 
+## Reference to the host/owner. Passed to the state on enter/exit/update.
 var host: Node:
 	get: return host_type()
 
-## The currently active state.
 var _current: DogState
 
-## Initialise the machine with a starting state reference.
+## Initialise the machine with a starting state reference. Call once,
+## in the host/owner's _ready().
+##
 ## [codeblock]
-## func _
-##   fsm.init(state_idle)
+## func _ready() -> void:
+##   fsm.init(idle_state)
+## [/codeblock]
 func init(state: DogState) -> void:
 	owner = host
 	_current = state
 	_current.enter(host)
 
 
-## Drive the active state. Call from the actor's _process:
+## Drive the active state. Call from the host/owner's _physics_process:
+##
+## [codeblock]
+## func _physics_process(delta: float) -> void:
 ##   fsm.update(delta)
+## [/codeblock]
 func update(delta: float) -> void:
 	if _current == null:
 		return
@@ -29,7 +36,6 @@ func update(delta: float) -> void:
 		_transition(next)
 
 
-## Exit current, enter next. Override in subclasses if needed.
 func _transition(next: DogState) -> void:
 	if next == null:
 		return

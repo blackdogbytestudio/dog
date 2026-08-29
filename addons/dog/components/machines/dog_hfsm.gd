@@ -1,19 +1,19 @@
 @tool
 class_name DogHFSM
 extends DogFSM
-## DogHFSM — hierarchical state machine component.
-## Works exactly like DogFSM — the hierarchy lives inside
-## the states via GDScript inheritance and super().
-## The machine itself does not change.
+## Hierarchical state machine component. Works exactly like [DogFSM],
+## the hierarchy lives inside the states via GDScript inheritance and
+## super(). The machine itself does not change.
 ##
-## Usage in actor:
-##   @onready var hfsm: DogHFSM = $DogHFSM
-##   var state_idle    = StateIdle.new()    # extends StateGrounded
-##   var state_walk    = StateWalk.new()    # extends StateGrounded
-##   var state_airborne= StateAirborne.new()# extends StateAlive
+## [codeblock]
+## var idle_state     := PlayerIdleState.new()     # extends PlayerGroundedState
+## var walk_state     := PlayerWalkState.new()     # extends PlayerGroundedState
+## var airborne_state := PlayerAirborneState.new() # extends PlayerAliveState
 ##
-##   func _ready():
-##       hfsm.init(state_idle, self)
+## func _ready() -> void:
+##   hfsm.init(idle_state)
 ##
-##   func _process(delta):
-##       hfsm.update(delta)
+##
+## func _process(delta: float) -> void:
+##   hfsm.update(delta)
+## [/codeblock]
