@@ -1,27 +1,25 @@
 @abstract
 class_name DogState
 extends RefCounted
-## DogState — base class for all states.
-## Extends RefCounted: pure script, never enters the scene tree.
-## host is passed explicitly on every call so states
-## treat the actor as a typed API.
+
+## Base class for all Dog states.
 ##
-## locked: when true update() stops natural progression.
-## send() on the machine always bypasses locked.
+## States are pure objects and do not enter the scene tree.
+## The host is passed explicitly to lifecycle methods.
 
 ## Called when this state becomes active.
 @abstract
 func enter(host: Node) -> void
 
 
-## Called when this state is leaving.
-## Disconnect signals, stop timers, clean up here.
+## Called when this state is deactivated.
 @abstract
 func exit(host: Node) -> void
 
 
-## Called every frame by the host via machine.update(delta).
-## Return a DogState to request a transition, null to stay.
-## Always check locked first — call super() at the top.
+## Called to update this state.
+##
+## Return a DogState to request a transition.
+## Return null to remain in the current state.
 @abstract
 func update(host: Node, delta: float) -> DogState

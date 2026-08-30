@@ -1,7 +1,8 @@
 @tool
 class_name DogFSM
 extends DogMachine
-## DogFSM — flat finite state machine.
+## Flat finite state machine.
+##
 ## States return the next DogState from update() to transition.
 ## force() transitions from the outside at any time.
 ##

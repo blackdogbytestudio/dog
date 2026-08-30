@@ -1,8 +1,8 @@
 @abstract
 class_name DogFSMState
 extends DogState
-
-## Blocks update() from progressing to the next state.
-## Set to true in enter() when the state needs to wait
-## for a timer, animation, or signal before moving on.
+## Blocks transitions to another state.
+##
+## Set to true when the state must wait for an event,
+## such as a timer, animation, or signal.
 var locked: bool = false

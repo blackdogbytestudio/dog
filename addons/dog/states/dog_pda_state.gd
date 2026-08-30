@@ -1,31 +1,36 @@
 @abstract
 class_name DogPDAState
 extends DogState
-## DogStatePDA — base for states that live on a DogPDA stack.
-## Extends DogState adding pause and resume virtuals.
-## Use this instead of DogState when the state will be
-## pushed onto a DogPDA and needs to freeze/unfreeze cleanly.
+## Base class for states that live on a DogPDA stack.
 ##
-## Lifecycle on a DogPDA stack:
-##   enter  → state becomes active for the first time
-##   pause  → state is suspended, a new state pushed on top
-##   resume → state is back on top after the above was popped
-##   exit   → state is done, clean up signals and timers
+## A state can be paused when another state
+## is pushed on top of it and resumed when that state is removed.
 ##
-## Example:
-##   class StateGameplay extends DogStatePDA:
-##       func pause(host):
-##           host.set_physics_process(false)
-##       func resume(host):
-##           host.set_physics_process(true)
+## [codeblock]
+## enter  → state becomes active
+## pause  → state is suspended
+## resume → state becomes active again
+## exit   → state is removed from the stack
+## [/codeblock]
+##
+## [br]
+## [b]Example:[/b]
+## [codeblock]
+## class PauseState extends DogPDAState:
+##     func pause(host: Node) -> void:
+##         host.set_physics_process(false)
+##
+##     func resume(host: Node) -> void:
+##         host.set_physics_process(true)
+## [/codeblock]
 
-## Called when a new state is pushed on top of this one.
-## Freeze here — do not disconnect signals or clean up.
+## Called when another state is pushed on top of this state.
+## Pause the state without cleaning up its resources.
 @abstract
 func pause(host: Node) -> void
 
 
-## Called when the state above this one is popped.
-## Unfreeze here — pick up exactly where you left off.
+## Called when the state above this one is removed.
+## Resume the state from where it was paused.
 @abstract
-func resume(owner: Node) -> void
+func resume(host: Node) -> void

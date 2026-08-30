@@ -1,5 +1,5 @@
 @tool
-class_name DogScaffoldInstaller
+class_name DogScaffoldSetup
 extends DogSetup
 
 ## Default scaffold. Copied out on first install.

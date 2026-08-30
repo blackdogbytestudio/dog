@@ -1,5 +1,5 @@
 @tool
-class_name DogTemplateInstaller
+class_name DogTemplateSetup
 extends DogSetup
 
 ## Default templates folder path inside the addon.

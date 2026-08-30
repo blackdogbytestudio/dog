@@ -29,5 +29,10 @@
 		},
 		"ui": {},
 		"placeholders": {}
-	}
+	},
+	"scripts": {
+		"autoloads": {},
+		"globals": {}
+	},
+	"components": {}
 }
