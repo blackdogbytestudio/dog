@@ -2,8 +2,8 @@
 extends EditorPlugin
 
 func _enable_plugin() -> void:
-	DogScaffoldInstaller.install()
-	DogTemplateInstaller.install()
+	DogScaffoldSetup.install()
+	DogTemplateSetup.install()
 
 
 func _disable_plugin() -> void:
