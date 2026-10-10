@@ -20,3 +20,4 @@ mono_crash.*.json
 # Dog-specific ignores
 /addons/*
 !/addons/dog/
+builds/
