@@ -7,10 +7,28 @@ signal printed(text: String)
 
 var _commands: Dictionary[String, DogCommand] = {}
 
-
 func register(command: DogCommand) -> void:
+	command.cli = self
 	command.printed.connect(printed.emit)
 	_commands[command.command_name()] = command
+
+
+func register_folder(path: String) -> void:
+	for file in DirAccess.get_files_at(path):
+		if not file.ends_with(".gd"):
+			continue
+
+		var script := load(path.path_join(file)) as GDScript
+		if script == null or not script.can_instantiate():
+			continue
+
+		# Avoid leaking a Node (or anything non-RefCounted) by instantiating it.
+		if script.get_instance_base_type() != "RefCounted":
+			continue
+
+		var command := script.new() as DogCommand
+		if command != null:
+			register(command)
 
 
 func commands() -> Array[DogCommand]:
@@ -38,25 +56,4 @@ func execute(line: String) -> Error:
 
 
 static func tokenize(line: String) -> PackedStringArray:
-	var tokens := PackedStringArray()
-	var current := ""
-	var quote := ""
-
-	for character in line:
-		if quote != "":
-			if character == quote:
-				quote = ""
-			else:
-				current += character
-		elif character == "'" or character == '"':
-			quote = character
-		elif character == " ":
-			if current != "":
-				tokens.append(current)
-				current = ""
-		else:
-			current += character
-
-	if current != "":
-		tokens.append(current)
-	return tokens
+	return line.split(" ", false)

@@ -5,6 +5,7 @@ extends RefCounted
 
 signal printed(text: String)
 
+var cli: DogCli
 
 func command_name() -> String:
 	return ""

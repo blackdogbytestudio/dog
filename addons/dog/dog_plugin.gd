@@ -14,7 +14,7 @@ func _disable_plugin() -> void:
 
 func _enter_tree() -> void:
 	var cli := DogCli.new()
-	cli.register(DogHelpCommand.new(cli))
+	cli.register_folder("res://addons/dog/generators/commands")
 	_panel = DogPanel.new(cli)
 	add_control_to_bottom_panel(_panel, "DOG")
 
