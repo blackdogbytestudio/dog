@@ -1,0 +1,65 @@
+extends GutTest
+
+func _parents(tree: DogStateTree) -> Dictionary:
+	var result := {}
+	for node in tree.nodes:
+		result[node.name] = node.parent
+	return result
+
+
+func test_single_root() -> void:
+	var tree := DogStateTree.parse(PackedStringArray(["alive"]))
+	assert_eq(tree.error, "")
+	assert_eq(tree.nodes.size(), 1)
+	assert_eq(tree.nodes[0].parent, "")
+	assert_eq(tree.nodes[0].depth, 0)
+
+
+func test_nested_tree() -> void:
+	var tokens := DogCli.tokenize("alive .grounded ..run ...run_ground ..idle dead")
+	var tree := DogStateTree.parse(tokens)
+	assert_eq(tree.error, "")
+	assert_eq(_parents(tree), {
+		"alive": "",
+		"grounded": "alive",
+		"run": "grounded",
+		"run_ground": "run",
+		"idle": "grounded",
+		"dead": "",
+	})
+
+
+func test_parent_always_comes_before_children() -> void:
+	var tree := DogStateTree.parse(DogCli.tokenize("alive .grounded ..run dead"))
+	var seen := {}
+	for node in tree.nodes:
+		if node.parent != "":
+			assert_true(seen.has(node.parent), "%s came before its parent" % node.name)
+		seen[node.name] = true
+
+
+func test_empty_is_an_error() -> void:
+	assert_ne(DogStateTree.parse(PackedStringArray()).error, "")
+
+
+func test_too_deep_is_an_error() -> void:
+	assert_ne(DogStateTree.parse(PackedStringArray(["alive", "...run"])).error, "")
+
+
+func test_duplicate_name_is_an_error() -> void:
+	assert_ne(DogStateTree.parse(PackedStringArray(["alive", ".idle", "dead", ".idle"])).error, "")
+
+
+func test_dots_without_name_is_an_error() -> void:
+	assert_ne(DogStateTree.parse(PackedStringArray(["alive", ".."])).error, "")
+
+
+func test_quoted_input_is_an_error() -> void:
+	var tree := DogStateTree.parse(DogCli.tokenize("'alive .grounded'"))
+	assert_ne(tree.error, "")
+
+
+func test_invalid_characters_are_an_error() -> void:
+	assert_ne(DogStateTree.parse(PackedStringArray(["Alive"])).error, "")
+	assert_ne(DogStateTree.parse(PackedStringArray(["al ive"])).error, "")
+	assert_ne(DogStateTree.parse(PackedStringArray(["1alive"])).error, "")
