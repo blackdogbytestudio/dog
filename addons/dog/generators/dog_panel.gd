@@ -24,7 +24,7 @@ func _init(cli: DogCli) -> void:
 
 
 func _print(text: String) -> void:
-	_output.append_text(text + "\n")
+	_output.add_text(text + "\n")
 
 
 func _on_submitted(line: String) -> void:
