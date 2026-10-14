@@ -1,69 +1,65 @@
-@tool
-class_name DogStateTree
-extends RefCounted
-## Parses a dot-depth state tree into a flat, ordered list of nodes.
-## Example: alive .grounded ..run ...run_ground ..idle dead
+extends GutTest
 
-class StateNode:
-	var name: String
-	var parent: String  # Empty for roots.
-	var depth: int
+func _parents(tree: DogStateTree) -> Dictionary:
+	var result := {}
+	for node in tree.nodes:
+		result[node.name] = node.parent
+	return result
 
 
-# Strict snake_case: every segment starts with a letter, so there are no double,
-# leading or trailing underscores. "\z" (not "$") because "$" also matches before
-# a trailing newline.
-static var _valid_name := RegEx.create_from_string("^[a-z][a-z0-9]*(_[a-z][a-z0-9]*)*\\z")
-
-var nodes: Array[StateNode] = []
-var error := ""
-
-
-static func parse(tokens: PackedStringArray) -> DogStateTree:
-	var tree := DogStateTree.new()
-	if tokens.is_empty():
-		return _fail(tree, "no states given.")
-
-	var path: Array[String] = []
-	var seen: Dictionary[String, bool] = {}
-
-	for token in tokens:
-		var depth := 0
-		while depth < token.length() and token[depth] == ".":
-			depth += 1
-
-		var state_name := token.substr(depth)
-		if state_name.is_empty():
-			return _fail(tree, "'%s' has dots but no name." % token)
-
-		if _valid_name.search(state_name) == null:
-			return _fail(tree, "'%s' is not a valid state name (use snake_case)." % state_name)
-
-		if depth > path.size():
-			if path.is_empty():
-				return _fail(tree, "'%s' can't be nested: the first state must be a root." % state_name)
-			return _fail(tree, "'%s' is nested too deep: previous state is at depth %d." % [state_name, path.size() - 1])
-
-		if seen.has(state_name):
-			return _fail(tree, "'%s' is declared twice." % state_name)
-		seen[state_name] = true
-
-		path.resize(depth)
-
-		var node := StateNode.new()
-		node.name = state_name
-		node.parent = path[depth - 1] if depth > 0 else ""
-		node.depth = depth
-		tree.nodes.append(node)
-
-		path.append(state_name)
-
-	return tree
+func test_single_root() -> void:
+	var tree := DogStateTree.parse(PackedStringArray(["alive"]))
+	assert_eq(tree.error, "")
+	assert_eq(tree.nodes.size(), 1)
+	assert_eq(tree.nodes[0].parent, "")
+	assert_eq(tree.nodes[0].depth, 0)
 
 
-# On any error the tree is returned empty, so a caller can never generate from a
-# half-parsed tree.
-static func _fail(tree: DogStateTree, message: String) -> DogStateTree:
-	tree.nodes.clear()
-	tree.error = message
-	return tree
+func test_nested_tree() -> void:
+	var tokens := DogCli.tokenize("alive .grounded ..run ...run_ground ..idle dead")
+	var tree := DogStateTree.parse(tokens)
+	assert_eq(tree.error, "")
+	assert_eq(_parents(tree), {
+		"alive": "",
+		"grounded": "alive",
+		"run": "grounded",
+		"run_ground": "run",
+		"idle": "grounded",
+		"dead": "",
+	})
+
+
+func test_parent_always_comes_before_children() -> void:
+	var tree := DogStateTree.parse(DogCli.tokenize("alive .grounded ..run dead"))
+	var seen := {}
+	for node in tree.nodes:
+		if node.parent != "":
+			assert_true(seen.has(node.parent), "%s came before its parent" % node.name)
+		seen[node.name] = true
+
+
+func test_empty_is_an_error() -> void:
+	assert_ne(DogStateTree.parse(PackedStringArray()).error, "")
+
+
+func test_too_deep_is_an_error() -> void:
+	assert_ne(DogStateTree.parse(PackedStringArray(["alive", "...run"])).error, "")
+
+
+func test_duplicate_name_is_an_error() -> void:
+	assert_ne(DogStateTree.parse(PackedStringArray(["alive", ".idle", "dead", ".idle"])).error, "")
+
+
+func test_dots_without_name_is_an_error() -> void:
+	assert_ne(DogStateTree.parse(PackedStringArray(["alive", ".."])).error, "")
+
+
+func test_quoted_input_is_an_error() -> void:
+	var tree := DogStateTree.parse(DogCli.tokenize("'alive .grounded'"))
+	assert_ne(tree.error, "")
+
+
+func test_invalid_characters_are_an_error() -> void:
+	assert_ne(DogStateTree.parse(PackedStringArray(["Alive"])).error, "")
+	assert_ne(DogStateTree.parse(PackedStringArray(["al ive"])).error, "")
+	assert_ne(DogStateTree.parse(PackedStringArray(["1alive"])).error, "")

@@ -19,6 +19,10 @@ var nodes: Array[StateNode] = []
 var error := ""
 
 
+static func is_valid_name(name: String) -> bool:
+	return _valid_name.search(name) != null
+
+
 static func parse(tokens: PackedStringArray) -> DogStateTree:
 	var tree := DogStateTree.new()
 	if tokens.is_empty():
@@ -36,7 +40,7 @@ static func parse(tokens: PackedStringArray) -> DogStateTree:
 		if state_name.is_empty():
 			return _fail(tree, "'%s' has dots but no name." % token)
 
-		if _valid_name.search(state_name) == null:
+		if not is_valid_name(state_name):
 			return _fail(tree, "'%s' is not a valid state name (use snake_case)." % state_name)
 
 		if depth > path.size():
