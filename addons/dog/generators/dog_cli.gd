@@ -7,19 +7,33 @@ signal printed(text: String)
 
 var _commands: Dictionary[String, DogCommand] = {}
 
+
 func register(command: DogCommand) -> void:
+	var key := command.command_name()
+	if key.is_empty():
+		push_warning("DOG: a command has no name and was skipped.")
+		return
+	if _commands.has(key):
+		push_warning("DOG: command '%s' is already registered and was skipped." % key)
+		return
+
 	command.cli = self
 	command.printed.connect(printed.emit)
-	_commands[command.command_name()] = command
+	_commands[key] = command
 
 
 func register_folder(path: String) -> void:
-	for file in DirAccess.get_files_at(path):
+	# get_files_at() makes no promise about order; sort so "help" is stable.
+	var files := DirAccess.get_files_at(path)
+	files.sort()
+
+	for file in files:
 		if not file.ends_with(".gd"):
 			continue
 
 		var script := load(path.path_join(file)) as GDScript
 		if script == null or not script.can_instantiate():
+			push_warning("DOG: could not load command script '%s' (script error?)." % file)
 			continue
 
 		# Avoid leaking a Node (or anything non-RefCounted) by instantiating it.
@@ -29,6 +43,14 @@ func register_folder(path: String) -> void:
 		var command := script.new() as DogCommand
 		if command != null:
 			register(command)
+
+
+## Commands hold a reference back to the cli, and the cli holds the commands.
+## RefCounted can't free a cycle, so call this when the cli is no longer needed.
+func dispose() -> void:
+	for command in _commands.values():
+		command.cli = null
+	_commands.clear()
 
 
 func commands() -> Array[DogCommand]:
@@ -56,4 +78,4 @@ func execute(line: String) -> Error:
 
 
 static func tokenize(line: String) -> PackedStringArray:
-	return line.split(" ", false)
+	return line.replace("\t", " ").replace("\n", " ").replace("\r", " ").split(" ", false)
