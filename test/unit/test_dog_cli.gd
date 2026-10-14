@@ -1,65 +1,95 @@
 extends GutTest
 
-const COMMANDS_PATH := "res://addons/dog/generators/commands"
+const FakeCommand := preload("res://test/doubles/fake_command.gd")
 
 
-class SpyCommand extends DogCommand:
-	var received := PackedStringArray()
-
-	func command_name() -> String:
-		return "spy"
-
-	func run(args: PackedStringArray) -> Error:
-		received = args
-		return OK
+var _cli: DogCli
 
 
-func test_tokenize_state_tree() -> void:
-	var tokens := DogCli.tokenize("hpda player alive .grounded ..run ..idle dead")
-	assert_eq(tokens, PackedStringArray(["hpda", "player", "alive", ".grounded", "..run", "..idle", "dead"]))
+func before_each() -> void:
+	_cli = DogCli.new()
 
 
-func test_tokenize_ignores_extra_spaces() -> void:
-	assert_eq(DogCli.tokenize("  help   "), PackedStringArray(["help"]))
+func after_each() -> void:
+	_cli.dispose()
 
 
-func test_execute_empty_line_does_nothing() -> void:
-	var cli := DogCli.new()
-	assert_eq(cli.execute("   "), OK)
+func _names() -> Array:
+	var result := []
+	for command in _cli.commands():
+		result.append(command.command_name())
+	return result
 
 
-func test_execute_unknown_command() -> void:
-	var cli := DogCli.new()
-	var lines := []
-	cli.printed.connect(func(text: String) -> void: lines.append(text))
-	assert_eq(cli.execute("nope"), ERR_DOES_NOT_EXIST)
+func test_tokenize_splits_on_any_whitespace() -> void:
+	assert_eq(DogCli.tokenize("a\tb\n c  d"), PackedStringArray(["a", "b", "c", "d"]))
+
+
+func test_tokenize_blank_line_gives_no_tokens() -> void:
+	assert_eq(DogCli.tokenize("   \t ").size(), 0)
+
+
+func test_register_skips_a_command_without_name() -> void:
+	_cli.register(FakeCommand.new(""))
+	assert_eq(_cli.commands().size(), 0)
+
+
+func test_register_skips_a_duplicate_name() -> void:
+	var first := FakeCommand.new("same")
+	_cli.register(first)
+	_cli.register(FakeCommand.new("same"))
+	assert_eq(_cli.commands().size(), 1)
+	assert_eq(_cli.commands()[0], first)
+
+
+func test_dispose_breaks_the_reference_cycle() -> void:
+	var command := FakeCommand.new("x")
+	_cli.register(command)
+	assert_eq(command.cli, _cli)
+	_cli.dispose()
+	assert_null(command.cli)
+	assert_eq(_cli.commands().size(), 0)
+
+
+func test_execute_dispatches_with_the_remaining_args() -> void:
+	var command := FakeCommand.new("go")
+	_cli.register(command)
+	assert_eq(_cli.execute("go a b"), OK)
+	assert_true(command.ran)
+	assert_eq(command.received, PackedStringArray(["a", "b"]))
+
+
+func test_execute_accepts_the_dog_prefix() -> void:
+	var command := FakeCommand.new("go")
+	_cli.register(command)
+	assert_eq(_cli.execute("dog go a"), OK)
+	assert_true(command.ran)
+	assert_eq(command.received, PackedStringArray(["a"]))
+
+
+func test_execute_unknown_command_reports_it() -> void:
+	var lines: Array[String] = []
+	_cli.printed.connect(func(text: String) -> void: lines.append(text))
+	assert_eq(_cli.execute("nope"), ERR_DOES_NOT_EXIST)
 	assert_eq(lines.size(), 1)
+	assert_string_contains(lines[0], "unknown command")
 
 
-func test_command_receives_clean_tokens() -> void:
-	var cli := DogCli.new()
-	var spy := SpyCommand.new()
-	cli.register(spy)
-
-	cli.execute("dog spy player alive .grounded ..run")
-	assert_eq(spy.received, PackedStringArray(["player", "alive", ".grounded", "..run"]))
-
-	cli.execute("spy player alive .grounded ..run")
-	assert_eq(spy.received, PackedStringArray(["player", "alive", ".grounded", "..run"]))
+func test_execute_blank_line_and_bare_prefix_are_ok() -> void:
+	assert_eq(_cli.execute(""), OK)
+	assert_eq(_cli.execute("   "), OK)
+	assert_eq(_cli.execute("dog"), OK)
 
 
-func test_register_folder_finds_commands() -> void:
-	var cli := DogCli.new()
-	cli.register_folder(COMMANDS_PATH)
-	var names := cli.commands().map(func(c: DogCommand) -> String: return c.command_name())
-	assert_has(names, "help")
-	assert_has(names, "hello")
+func test_command_output_reaches_the_cli() -> void:
+	var lines: Array[String] = []
+	_cli.printed.connect(func(text: String) -> void: lines.append(text))
+	_cli.register(DogHelloCommand.new())
+	_cli.execute("hello kns")
+	assert_eq(lines, ["Hello, kns!"] as Array[String])
 
 
-func test_help_lists_registered_commands() -> void:
-	var cli := DogCli.new()
-	cli.register_folder(COMMANDS_PATH)
-	var lines := []
-	cli.printed.connect(func(text: String) -> void: lines.append(text))
-	cli.execute("help")
-	assert_gt(lines.size(), 0)
+func test_register_folder_finds_the_builtin_commands() -> void:
+	_cli.register_folder("res://addons/dog/generators/commands")
+	assert_has(_names(), "hello")
+	assert_has(_names(), "help")
