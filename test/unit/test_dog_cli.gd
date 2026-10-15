@@ -93,3 +93,4 @@ func test_register_folder_finds_the_builtin_commands() -> void:
 	_cli.register_folder("res://addons/dog/generators/commands")
 	assert_has(_names(), "hello")
 	assert_has(_names(), "help")
+	assert_has(_names(), "state")

@@ -89,6 +89,45 @@ func _on_hitbox_area_entered(_area: Area2D) -> void:
 > `res://script_templates` are left untouched. Removing them is a manual
 > step.
 
+## Generators
+
+The plugin's bottom panel (DOG) runs generator commands. Type `help` in the
+panel to list them.
+
+### state
+
+Creates actor state scripts from the DOG script templates.
+
+```
+state <fsm|pda|hfsm|hpda> <actor> <tree...> [--folder path] [--host Class] [--extends State] [-f]
+```
+
+The tree uses dots to express depth — `alive .grounded ..idle ..run dead`
+makes `grounded` a child of `alive`, `idle` and `run` children of
+`grounded`, and `dead` another root. `fsm`/`pda` are flat (no nesting) and
+every state extends the actor base.
+
+Files are written under `res://scenes/characters/`:
+
+```
+state hpda enemy --folder enemies alive .grounded ..idle ..run dead
+```
+
+creates `res://scenes/characters/enemies/states/enemy_state.gd` (the actor
+base, from `class.gd`) plus one `enemy_<state>_state.gd` per tree node
+(from `state.gd`, extending its parent's class). Without `--folder` the
+actor name is the folder, so `state hpda player run` writes to
+`res://scenes/characters/player/states/`.
+
+Existing files are kept, so adding a state to an actor only writes the new
+one — `state hpda player alive .grounded ..run` leaves `player_state.gd`
+and `player_alive_state.gd` alone. Pass `-f` to rewrite them.
+
+`--host Class` types the generated states to that host (default: the actor,
+PascalCased). `--extends State` makes the root states inherit that state
+instead of the actor base and skips generating the actor base, e.g.
+`state hpda slime --extends enemy_alive_state --folder enemies/slime jump`.
+
 ## Project Structure (addon)
 
 ```
