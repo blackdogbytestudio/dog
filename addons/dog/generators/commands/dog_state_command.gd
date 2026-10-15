@@ -3,14 +3,12 @@ class_name DogStateCommand
 extends DogCommand
 ## state <type> <actor> <tree...> [--folder f] [--host Class] [--extends State] [-f]
 
-const OptParse := preload("res://addons/dog/generators/third_party/optparse.gd")
-const Generator := preload("res://addons/dog/generators/dog_state_generator.gd")
 
 const FLAT_TYPES: PackedStringArray = ["fsm", "pda"]
 const TREE_TYPES: PackedStringArray = ["hfsm", "hpda"]
 
 # Overridable so tests never write into res://.
-var root: String = Generator.ROOT
+var root: String = DogStateGenerator.ROOT
 
 
 class Request:
@@ -42,7 +40,7 @@ func run(args: PackedStringArray) -> Error:
 		print_line("DOG: state: %s" % request.error)
 		return ERR_INVALID_PARAMETER
 
-	var result := Generator.generate(
+	var result := DogStateGenerator.generate(
 		request.type,
 		request.actor,
 		request.folder,
@@ -66,7 +64,7 @@ func run(args: PackedStringArray) -> Error:
 static func parse_request(args: PackedStringArray) -> Request:
 	var request: Request = Request.new()
 
-	var parser := OptParse.new()
+	var parser := DogOptParse.new()
 	parser.add_positional_required("type", "", "type: fsm | pda | hfsm | hpda")
 	parser.add_positional_required("actor", "", "actor name (snake_case)")
 	parser.add("--folder", "", "category folder, e.g. enemies/slime -> scenes/characters/enemies/slime/states")

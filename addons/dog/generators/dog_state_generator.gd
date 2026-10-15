@@ -7,7 +7,6 @@ extends RefCounted
 ## wrappers); every tree node is created from state.gd, extending its
 ## parent state's class. Existing files are kept unless force is set.
 
-
 const ROOT := "res://scenes/characters"
 const STATES_DIR := "states"
 
@@ -71,9 +70,13 @@ static func generate(
 			return result
 
 	for node in tree.nodes:
-		var parent := base_class
-		if parent.is_empty():
-			parent = state_class(actor) if node.depth == 0 else state_class(actor, node.parent)
+		var parent: String
+		if node.depth > 0:
+			parent = state_class(actor, node.parent)
+		elif not base_class.is_empty():
+			parent = base_class
+		else:
+			parent = state_class(actor)
 
 		var write_error := _write(
 			result, dir, file_name(actor, node.name), template_dir.path_join(NODE_TEMPLATE),

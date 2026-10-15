@@ -166,6 +166,21 @@ func test_generate_extends_suppresses_actor_base() -> void:
 	assert_string_contains(_text(dir.path_join("slime_jump_state.gd")), "extends EnemyAliveState")
 
 
+func test_generate_extends_only_applies_to_root_states() -> void:
+	_generate(PackedStringArray([
+		"hpda", "slime", "--extends", "enemy_alive_state",
+		"--folder", "enemies/slime", "jump", ".air", "..land", "walk",
+	]))
+	var dir := _states("enemies/slime")
+
+	# Roots inherit from the --extends state.
+	assert_string_contains(_text(dir.path_join("slime_jump_state.gd")), "extends EnemyAliveState")
+	assert_string_contains(_text(dir.path_join("slime_walk_state.gd")), "extends EnemyAliveState")
+	# Nested states inherit from their parent in the tree, not from --extends.
+	assert_string_contains(_text(dir.path_join("slime_air_state.gd")), "extends SlimeJumpState")
+	assert_string_contains(_text(dir.path_join("slime_land_state.gd")), "extends SlimeAirState")
+
+
 func test_generate_flat_states_extend_the_actor_state() -> void:
 	_generate(PackedStringArray(["fsm", "player", "alive", "dead"]))
 	var dir := _states("player")

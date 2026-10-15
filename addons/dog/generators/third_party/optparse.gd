@@ -1,11 +1,13 @@
 @tool
+class_name DogOptParse
 # Vendored from GUT: https://github.com/bitwes/Gut (addons/gut/cli/optparse.gd)
-# GUT version: <preencha com a versão que você tem em addons/gut>
-# Copyright (c) 2025 Tom "Butch" Wesley, MIT License (full notice at the end of this file).
+# GUT version: 9.7.1
+# Copyright (c) 2025 Tom "Butch" Wesley, MIT License
+# (full notice at the end of this file).
 #
-# Only change from upstream: the @tool line above, so it runs inside the editor.
-# It has no class_name on purpose, so it can't clash with GUT in a user's project.
-# Load it with preload().
+# Changes from upstream:
+#   - Added @tool so it runs inside the editor.
+#   - Added class_name DogOptParse.
 
 ## Parses command line arguments, as one might expect.
 ##
