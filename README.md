@@ -1,7 +1,16 @@
-# DOG — Develop Original Games
+# Godot On Leash
 
-An opinionated, component-based framework with state machines, built for
-fast prototyping that scales into full games.
+> Convention over configuration, Rails-style, for Godot.
+
+An opinionated, component-based addon for Godot with state machines, built
+for fast prototyping that scales into full games. Inspired by Ruby on
+Rails: follow the conventions and the generators write the boilerplate for
+you.
+
+Godot On Leash is the leash. The `Dog*` classes (components, facades, state
+machines) are the dogs. That's why the code says `DogComponent` and not
+`LeashComponent`: you hold the leash, and everything you attach to it is a
+dog.
 
 > **Status:** Still in early experimentation and likely to have bugs. Good
 > for testing ideas and prototypes — not yet validated for a full game.
@@ -10,13 +19,20 @@ fast prototyping that scales into full games.
 
 Godot gives you total freedom — which is great, until your `Player.gd`
 turns into a 500-line file mixing movement, state, input, and everything
-else. DOG borrows Rails' idea of **convention over configuration**: follow
-its structure and it handles the plumbing (component wiring, state
-transitions, project scaffolding), so you focus on the game.
+else. Godot On Leash takes its inspiration straight from Rails and its idea
+of **convention over configuration**: follow the structure and it handles
+the plumbing (component wiring, state transitions, project scaffolding), so
+you focus on the game.
 
-It's "dumb by design." DOG doesn't guard against every possible misuse —
-if you attach the wrong component to the wrong host, it fails loudly and
-predictably instead of silently working around it.
+The convention is what pays off. Every actor looks the same, every state
+lives in a predictable place with a predictable name, and the boilerplate
+isn't something you type: the [generators](#generators) create it for you.
+Like `rails generate`, one command gives you the files in the right place,
+already wired the way the framework expects.
+
+It's "dumb by design." Godot On Leash doesn't guard against every possible
+misuse — if you attach the wrong component to the wrong host, it fails
+loudly and predictably instead of silently working around it.
 
 ## Core Concepts
 
@@ -77,12 +93,12 @@ func _on_hitbox_area_entered(_area: Area2D) -> void:
 ## Installation
 
 1. Copy `addons/dog/` into your project's `addons/` folder.
-2. Enable **dog** under **Project → Project Settings → Plugins**.
+2. Enable **Godot On Leash** under **Project → Project Settings → Plugins**.
 3. Enabling the plugin automatically:
    - Scaffolds your project's folder structure from
      `config/scaffold.json` (assets, scenes, scripts, components —
      editable after first install, idempotent on re-enable)
-   - Installs DOG's script templates into `res://script_templates`
+   - Installs the script templates into `res://script_templates`
 
 > **Note:** Disabling the plugin does not remove anything it installed —
 > the scaffolded folders, `config/scaffold.json`, and
@@ -91,12 +107,12 @@ func _on_hitbox_area_entered(_area: Area2D) -> void:
 
 ## Generators
 
-The plugin's bottom panel (DOG) runs generator commands. Type `help` in the
+The plugin's bottom panel runs generator commands. Type `help` in the
 panel to list them.
 
 ### state
 
-Creates actor state scripts from the DOG script templates.
+Creates actor state scripts from the script templates.
 
 ```
 state <fsm|pda|hfsm|hpda> <actor> <tree...> [--folder path] [--host Class] [--extends State] [-f]
