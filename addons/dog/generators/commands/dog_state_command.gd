@@ -53,6 +53,8 @@ func run(args: PackedStringArray) -> Error:
 		print_line("DOG: state: %s" % result.error)
 		return FAILED
 
+	for warning in result.warnings:
+		print_line("warning: %s" % warning)
 	for path in result.written:
 		print_line("created %s" % path)
 	for path in result.skipped:
