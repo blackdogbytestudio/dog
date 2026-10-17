@@ -205,3 +205,65 @@ func test_force_orders_signals_vars_ready_then_funcs_below_the_header():
 		"@tool\nextends CharacterBody2D\n\n" + SIGNAL_LINE + "\n\n" + VAR_LINE + "\n\n\nfunc _ready() -> void:\n" + CONNECT_LINE + "\n\n\nfunc jump() -> void:\n\t_jump.jump()\n"
 	)
 	assert_false(r.source.contains("old"))
+
+
+# --- func_line (a line that must exist at the top of a given func) ---------
+
+const UPDATE_LINE := "\t_dog_hpda.update(delta)"
+
+
+func _func_line(func_name: String, line_name: String, text: String) -> Dictionary:
+	return {"kind": "func_line", "func": func_name, "name": line_name, "text": text}
+
+
+func _update_line() -> Dictionary:
+	return _func_line("_physics_process", "_dog_hpda.update", UPDATE_LINE)
+
+
+func test_func_line_creates_physics_process_with_delta_when_missing():
+	var r := DogApiMerge.merge("extends CharacterBody2D\n", [_update_line()])
+	assert_eq(r.source, HEAD + "func _physics_process(delta: float) -> void:\n" + UPDATE_LINE + "\n")
+	assert_eq(r.report, ["add func _physics_process", "add line _dog_hpda.update"])
+	assert_eq(r.error, "")
+
+
+func test_func_line_goes_to_the_top_of_an_existing_body():
+	var source := HEAD + "func _physics_process(delta: float) -> void:\n\tmove_and_slide()\n"
+	var r := DogApiMerge.merge(source, [_update_line()])
+	assert_eq(r.source, HEAD + "func _physics_process(delta: float) -> void:\n" + UPDATE_LINE + "\n\tmove_and_slide()\n")
+	assert_eq(r.report, ["add line _dog_hpda.update"])
+
+
+func test_func_line_already_there_is_skipped():
+	var source := HEAD + "func _physics_process(delta: float) -> void:\n\tmove_and_slide()\n" + UPDATE_LINE + "\n"
+	var r := DogApiMerge.merge(source, [_update_line()])
+	assert_eq(r.source, source)
+	assert_eq(r.report, ["skip line _dog_hpda.update"])
+
+
+func test_func_line_in_a_one_line_func_is_an_error():
+	var source := HEAD + "func _physics_process(delta): pass\n"
+	var r := DogApiMerge.merge(source, [_update_line()])
+	assert_string_contains(r.error, "_physics_process")
+	assert_string_contains(r.error, "line 4")
+	assert_eq(r.source, source)
+	assert_eq(r.report, [])
+
+
+func test_func_line_on_ready_matches_ready_line():
+	var as_func_line := _func_line("_ready", "_jump.landed", CONNECT_LINE)
+	for source in ["extends CharacterBody2D\n", HEAD + "func _ready() -> void:\n\tpass\n"]:
+		assert_eq(
+			DogApiMerge.merge(source, [as_func_line]).source,
+			DogApiMerge.merge(source, [_connect()]).source
+		)
+
+
+func test_func_lines_for_two_funcs_go_to_their_own_funcs():
+	var source := HEAD + "func _ready() -> void:\n\tpass\n\n\nfunc _physics_process(delta: float) -> void:\n\tpass\n"
+	var r := DogApiMerge.merge(source, [_update_line(), _func_line("_ready", "_dog_hpda.init", "\t_dog_hpda.init(idle_state)")])
+	assert_eq(
+		r.source,
+		HEAD + "func _ready() -> void:\n\t_dog_hpda.init(idle_state)\n\tpass\n\n\nfunc _physics_process(delta: float) -> void:\n" + UPDATE_LINE + "\n\tpass\n"
+	)
+	assert_eq(r.report, ["add line _dog_hpda.update", "add line _dog_hpda.init"])
