@@ -152,7 +152,10 @@ Existing files are kept, so adding a state to an actor only writes the new
 one — `state hpda player alive .grounded ..run` leaves `player_state.gd`
 and `player_alive_state.gd` alone, and the script only gets what is missing.
 `-u` also updates the script (e.g. the `init` line when the initial state
-changed) and never touches state files. Pass `-f` to rewrite them.
+changed) and never touches state files. `-f` goes back to factory: it
+deletes the actor's whole `states/` folder, recreates it from the tree and
+rewrites the script below its header (the report lists every dropped file
+and member; run `api` again afterwards if you use it).
 
 The states are typed to the actor's class, the actor in PascalCase
 (`skinny_man` → `SkinnyMan`, `character_body_2d` → `CharacterBody2D`); for
