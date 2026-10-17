@@ -200,6 +200,17 @@ func test_generate_uses_actor_as_default_host() -> void:
 	assert_string_contains(_text(_states("enemy").path_join("enemy_alive_state.gd")), "Enemy")
 
 
+func test_parse_accepts_actor_with_a_digit_part() -> void:
+	assert_eq(_request(PackedStringArray(["fsm", "character_body_2d", "idle"])).error, "")
+
+
+func test_generate_capitalizes_the_letter_after_a_number() -> void:
+	_generate(PackedStringArray(["fsm", "character_body_2d", "idle"]))
+	var dir := _states("character_body_2d")
+	assert_string_contains(_text(dir.path_join("character_body_2d_state.gd")), "class_name CharacterBody2DState")
+	assert_string_contains(_text(dir.path_join("character_body_2d_idle_state.gd")), "class_name CharacterBody2DIdleState")
+
+
 # --- run --------------------------------------------------------------------
 
 func test_run_prints_created_and_keeps() -> void:
