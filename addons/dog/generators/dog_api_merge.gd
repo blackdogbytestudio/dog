@@ -6,8 +6,10 @@ extends RefCounted
 ## `blocks` is an Array of Dictionaries {"kind", "name", "text"}:
 ## - "func" (default when "kind" is missing): `text` is the full func, no trailing newline.
 ## - "var" / "signal": `text` is the one-line declaration.
-## - "ready_line": `text` is one indented line that must exist inside `_ready`
-##   (`_ready` is created when missing). `name` is only used in the report.
+## - "func_line": `text` is one indented line that must exist inside the func
+##   named by "func"; it goes to the top of the body, and the func is created when
+##   missing. `name` is only used in the report.
+## - "ready_line": a "func_line" for `_ready` (reported as "connect").
 ##
 ## Modes:
 ## - ADD (default): add what is missing, matching by name only.
@@ -23,6 +25,12 @@ enum Mode { ADD, UPDATE, FORCE }
 
 ## A top-level line that starts a new declaration (so it can't be part of a body).
 const DECLARATION := "^(@|##|(static\\s+func|func|var|const|signal|enum|class_name|class|extends)\\b)"
+## Signatures for funcs that "func_line" creates; others get `func name() -> void:`.
+const SIGNATURES := {
+	"_ready": "func _ready() -> void:",
+	"_process": "func _process(delta: float) -> void:",
+	"_physics_process": "func _physics_process(delta: float) -> void:",
+}
 ## Lines that belong to the top of the file, above the members.
 const HEADER_LINE := "^(@tool|@icon|@static_unload|class_name|extends)\\b"
 const APPEND_ORDER := ["signal", "var", "ready", "func"]
@@ -39,9 +47,8 @@ static func merge(source: String, blocks: Array, mode := Mode.ADD) -> Dictionary
 	var report := []
 	var buckets := {"signal": [], "var": [], "ready": [], "func": []}
 	var to_replace: Array = []
-	var connects_to_insert := PackedStringArray()
-	var ready_lines_to_create := PackedStringArray()
-	var ready_start := _find(lines, "func", "_ready")
+	var lines_to_insert := {}  # func name -> PackedStringArray, for funcs that exist
+	var funcs_to_create := {}  # func name -> PackedStringArray, in block order
 
 	# Pass 1 only reads: classify every block and validate before touching anything.
 	for block in blocks:
@@ -50,19 +57,24 @@ static func merge(source: String, blocks: Array, mode := Mode.ADD) -> Dictionary
 		var text: String = block["text"]
 		var label := "%s %s" % [_word(kind), block_name]
 
-		if kind == "ready_line":
-			if ready_start == -1:
-				if ready_lines_to_create.is_empty():
-					report.append("add func _ready")
-				ready_lines_to_create.append(text)
+		if kind == "ready_line" or kind == "func_line":
+			var target: String = "_ready" if kind == "ready_line" else block["func"]
+			var func_start := _find(lines, "func", target)
+			if func_start == -1:
+				if not funcs_to_create.has(target):
+					funcs_to_create[target] = PackedStringArray()
+					report.append("add func " + target)
+				funcs_to_create[target].append(text)
 				report.append("add " + label)
 				continue
-			if not lines[ready_start].strip_edges().ends_with(":"):
-				return _error(source, "func _ready (line %d) has its body on the same line: can't add lines under it" % (ready_start + 1))
-			if _has_line(lines, ready_start, text):
+			if not lines[func_start].strip_edges().ends_with(":"):
+				return _error(source, "func %s (line %d) has its body on the same line: can't add lines under it" % [target, func_start + 1])
+			if _has_line(lines, func_start, text):
 				report.append("skip " + label)
 			else:
-				connects_to_insert.append(text)
+				if not lines_to_insert.has(target):
+					lines_to_insert[target] = PackedStringArray()
+				lines_to_insert[target].append(text)
 				report.append("add " + label)
 			continue
 
@@ -92,15 +104,16 @@ static func merge(source: String, blocks: Array, mode := Mode.ADD) -> Dictionary
 		var end: int = _span_for(kind, lines, start)["end"]
 		lines = lines.slice(0, start) + text.split("\n") + lines.slice(end + 1)
 
-	if not connects_to_insert.is_empty():
-		var at := _find(lines, "func", "_ready") + 1
-		lines = lines.slice(0, at) + connects_to_insert + lines.slice(at)
+	for target in lines_to_insert:
+		var at := _find(lines, "func", target) + 1
+		lines = lines.slice(0, at) + lines_to_insert[target] + lines.slice(at)
 
-	if not ready_lines_to_create.is_empty():
+	for target in funcs_to_create:
+		var signature: String = SIGNATURES.get(target, "func %s() -> void:" % target)
 		buckets["ready"].append({
 			"kind": "func",
-			"name": "_ready",
-			"text": "func _ready() -> void:\n" + "\n".join(ready_lines_to_create),
+			"name": target,
+			"text": signature + "\n" + "\n".join(funcs_to_create[target]),
 		})
 
 	var ordered: Array = []
@@ -137,7 +150,12 @@ static func _error(source: String, message: String) -> Dictionary:
 
 
 static func _word(kind: String) -> String:
-	return "connect" if kind == "ready_line" else kind
+	match kind:
+		"ready_line":
+			return "connect"
+		"func_line":
+			return "line"
+	return kind
 
 
 ## Index of the line that declares `block_name`, or -1. Whole-name match:
