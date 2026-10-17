@@ -1,7 +1,8 @@
 extends GutTest
-## Non-func blocks in DogApiMerge: "signal", "var" and "ready_line" (a line that
-## must exist inside _ready). Appended items are ordered signals, vars, _ready,
-## funcs; same-kind signals/vars stay together, funcs get two blank lines.
+## Non-func blocks in DogApiMerge: "signal", "var", "ready_line" (a line that
+## must exist inside _ready) and "func_line". New items follow the style guide
+## order (see test_dog_api_merge_order.gd); same-kind signals/vars stay together,
+## funcs get two blank lines.
 
 const HEAD := "extends CharacterBody2D\n\n\n"
 const VAR_LINE := "@onready var _jump: FixtureJump2D = $Jump"
@@ -45,10 +46,10 @@ func test_adds_var_after_header_with_one_blank_line():
 	assert_eq(r.report, ["add var _jump"])
 
 
-func test_added_var_after_existing_funcs_goes_to_the_end():
+func test_added_onready_var_goes_before_existing_funcs():
 	var source := HEAD + "func a() -> void:\n\tpass\n"
 	var r := DogApiMerge.merge(source, [_var()])
-	assert_eq(r.source, HEAD + "func a() -> void:\n\tpass\n\n" + VAR_LINE + "\n")
+	assert_eq(r.source, "extends CharacterBody2D\n\n" + VAR_LINE + "\n\n\nfunc a() -> void:\n\tpass\n")
 
 
 func test_skips_existing_var_even_if_it_differs():
