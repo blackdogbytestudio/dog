@@ -16,7 +16,8 @@ extends RefCounted
 ## - UPDATE (-u): ADD, plus replace existing func/var/signal whose text differs.
 ##   If a func that would be replaced looks cut in the middle, nothing changes and
 ##   `error` says which func and "line N" (1-based line of its `func`).
-## - FORCE (-f): keep the header and rewrite everything below it.
+## - FORCE (-f): keep the header and rewrite everything below it. The report ends
+##   with "drop <keyword> <name>" for each old member that was not regenerated.
 ##
 ## New items follow the Godot style guide order: each goes after the last member
 ## of its category; without one, before the first member of a later category;
@@ -70,7 +71,9 @@ const GAP_HEADER := -1
 
 static func merge(source: String, blocks: Array, mode := Mode.ADD) -> Dictionary:
 	var lines := source.split("\n")
+	var dropped := PackedStringArray()
 	if mode == Mode.FORCE:
+		dropped = _dropped(lines, blocks)
 		lines = _trim_blank_tail(lines.slice(0, _header_end(lines)))
 		if not lines.is_empty():
 			lines.append("")
@@ -147,7 +150,34 @@ static func merge(source: String, blocks: Array, mode := Mode.ADD) -> Dictionary
 	for block in to_add:
 		lines = _insert(lines, block["text"].split("\n"))
 
+	for label in dropped:
+		report.append("drop " + label)
 	return {"source": "\n".join(lines), "report": report, "error": ""}
+
+
+## "<keyword> <name>" of each member below the header that no block regenerates.
+static func _dropped(lines: PackedStringArray, blocks: Array) -> PackedStringArray:
+	var regenerated := {}
+	for block in blocks:
+		var kind: String = block.get("kind", "func")
+		if kind == "ready_line":
+			regenerated["func _ready"] = true
+		elif kind == "func_line":
+			regenerated["func " + block["func"]] = true
+		else:
+			regenerated["%s %s" % [kind, block["name"]]] = true
+
+	var re := RegEx.new()
+	re.compile("^(static\\s+)?(func|var|const|signal|enum|class)\\s+(\\w+)")
+	var dropped := PackedStringArray()
+	for member in _members(lines):
+		var found := re.search(_strip_annotations(lines[member["decl"]]))
+		if found == null:
+			continue
+		var label := "%s %s" % [found.get_string(2), found.get_string(3)]
+		if not regenerated.has(label):
+			dropped.append(label)
+	return dropped
 
 
 ## Puts `text` where the style guide wants it (see the top of this file) and
@@ -199,7 +229,7 @@ static func _blank(count: int) -> PackedStringArray:
 	return blank
 
 
-## The top-level members below the header, in file order: [{"start", "rank"}].
+## The top-level members below the header, in file order: [{"start", "decl", "rank"}].
 ## A member starts at its doc comment or annotation lines when they touch it.
 static func _members(lines: PackedStringArray) -> Array:
 	var members: Array = []
@@ -213,7 +243,7 @@ static func _members(lines: PackedStringArray) -> Array:
 				lead = i
 		elif _matches(DECLARATION, line):
 			var start := i if lead == -1 else lead
-			members.append({"start": start, "rank": _rank(lines, start, i)})
+			members.append({"start": start, "decl": i, "rank": _rank(lines, start, i)})
 			lead = -1
 		else:
 			lead = -1

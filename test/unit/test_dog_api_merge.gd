@@ -290,3 +290,29 @@ func test_force_does_not_error_on_malformed_funcs_below_the_header():
 	var r := _force(source, [_block("jump")])
 	assert_eq(r.error, "")
 	assert_eq(r.source, HEAD + JUMP + "\n")
+
+
+# --- FORCE (-f): report what was dropped -----------------------------------
+
+func test_force_reports_each_dropped_member_in_file_order():
+	var source := HEAD + "signal died\nvar speed := 1\n@onready var _x: Node = $X\n\n\nfunc old() -> void:\n\tpass\n"
+	var r := _force(source, [_block("jump")])
+	assert_eq(r.report, ["add func jump", "drop signal died", "drop var speed", "drop var _x", "drop func old"])
+
+
+func test_force_does_not_report_regenerated_members_as_dropped():
+	var source := HEAD + "func _ready() -> void:\n\tpass\n\n\nfunc jump() -> void:\n\tprint(\"mine\")\n"
+	var connect := {"kind": "ready_line", "name": "_x.landed", "text": "\t_x.landed.connect(landed.emit)"}
+	var r := _force(source, [_block("jump"), connect])
+	assert_eq(r.report, ["add func jump", "add func _ready", "add connect _x.landed"])
+
+
+func test_force_on_header_only_reports_no_drops():
+	var r := _force("extends CharacterBody2D\n", [_block("jump")])
+	assert_eq(r.report, ["add func jump"])
+
+
+func test_add_and_update_never_report_drops():
+	var source := HEAD + "func old() -> void:\n\tpass\n"
+	assert_eq(DogApiMerge.merge(source, [_block("jump")]).report, ["add func jump"])
+	assert_eq(_update(source, [_block("jump")]).report, ["add func jump"])
