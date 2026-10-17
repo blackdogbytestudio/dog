@@ -182,6 +182,12 @@ addons/dog/
   states/
     dog_state.gd  dog_fsm_state.gd  dog_hfsm_state.gd
     dog_pda_state.gd  dog_h_pda_state.gd
+  cli/                         # editor CLI behind the bottom panel
+    dog_cli.gd  dog_command.gd  dog_panel.gd
+    commands/                  # one file per command (state, api, help, ...)
+    generators/                # build + write the files a command produces
+    helpers/                   # pure helpers: script merge, render, names, state tree
+    third_party/               # vendored code (optparse from GUT)
   setup/                       # scaffolding + template installers
   scaffold.json                # default project scaffold
 ```

@@ -1,7 +1,7 @@
 extends GutTest
 
-const Command := preload("res://addons/dog/generators/commands/dog_state_command.gd")
-const Generator := preload("res://addons/dog/generators/dog_state_generator.gd")
+const Command := preload("res://addons/dog/cli/commands/dog_state_command.gd")
+const Generator := preload("res://addons/dog/cli/generators/dog_state_generator.gd")
 
 const ROOT := "user://dog_state_command_test"
 
