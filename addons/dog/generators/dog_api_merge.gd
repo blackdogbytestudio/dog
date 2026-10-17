@@ -18,7 +18,9 @@ extends RefCounted
 ##   `error` says which func and "line N" (1-based line of its `func`).
 ## - FORCE (-f): keep the header and rewrite everything below it.
 ##
-## New items are appended: signals, vars, `_ready`, funcs.
+## New items follow the Godot style guide order: each goes after the last member
+## of its category; without one, before the first member of a later category;
+## without one, at the end. What already exists is never reordered.
 ## Returns {"source": String, "report": Array[String], "error": String}.
 
 enum Mode { ADD, UPDATE, FORCE }
@@ -31,9 +33,39 @@ const SIGNATURES := {
 	"_process": "func _process(delta: float) -> void:",
 	"_physics_process": "func _physics_process(delta: float) -> void:",
 }
+## An annotation alone on its line (e.g. `@export` above a `var`).
+const ANNOTATION_ONLY := "^@\\w+(\\([^)]*\\))?\\s*$"
 ## Lines that belong to the top of the file, above the members.
 const HEADER_LINE := "^(@tool|@icon|@static_unload|class_name|extends)\\b"
-const APPEND_ORDER := ["signal", "var", "ready", "func"]
+## Style guide rank of each member (lower comes first). Built-in virtuals keep
+## the order of VIRTUAL_ORDER; the other built-in virtuals come right after them.
+## Overridden custom methods can't be told apart, so they rank as plain funcs.
+const RANK_SIGNAL := 50
+const RANK_ENUM := 60
+const RANK_CONST := 70
+const RANK_STATIC_VAR := 80
+const RANK_EXPORT_VAR := 90
+const RANK_VAR := 100
+const RANK_ONREADY_VAR := 110
+const RANK_STATIC_INIT := 120
+const RANK_STATIC_FUNC := 130
+const RANK_VIRTUAL := 140
+const RANK_OTHER_VIRTUAL := 150
+const RANK_FUNC := 160
+const RANK_CLASS := 170
+## Before RANK_STATIC_INIT, members are one-liners that may sit together.
+const FIRST_METHOD_RANK := RANK_STATIC_INIT
+const VIRTUAL_ORDER := ["_init", "_enter_tree", "_ready", "_process", "_physics_process"]
+const OTHER_VIRTUALS := [
+	"_exit_tree", "_input", "_shortcut_input", "_unhandled_input", "_unhandled_key_input",
+	"_notification", "_draw", "_integrate_forces", "_get_configuration_warnings", "_to_string",
+	"_get", "_set", "_get_property_list", "_validate_property", "_property_can_revert",
+	"_property_get_revert", "_gui_input", "_get_minimum_size", "_has_point",
+	"_make_custom_tooltip", "_can_drop_data", "_drop_data", "_get_drag_data",
+]
+## Gaps in blank lines measured from these ranks (not members).
+const GAP_FILE_START := -2
+const GAP_HEADER := -1
 
 
 static func merge(source: String, blocks: Array, mode := Mode.ADD) -> Dictionary:
@@ -45,7 +77,7 @@ static func merge(source: String, blocks: Array, mode := Mode.ADD) -> Dictionary
 		mode = Mode.ADD
 
 	var report := []
-	var buckets := {"signal": [], "var": [], "ready": [], "func": []}
+	var to_add: Array = []
 	var to_replace: Array = []
 	var lines_to_insert := {}  # func name -> PackedStringArray, for funcs that exist
 	var funcs_to_create := {}  # func name -> PackedStringArray, in block order
@@ -80,7 +112,7 @@ static func merge(source: String, blocks: Array, mode := Mode.ADD) -> Dictionary
 
 		var start := _find(lines, kind, block_name)
 		if start == -1:
-			buckets[kind].append(block)
+			to_add.append(block)
 			report.append("add " + label)
 			continue
 
@@ -110,39 +142,128 @@ static func merge(source: String, blocks: Array, mode := Mode.ADD) -> Dictionary
 
 	for target in funcs_to_create:
 		var signature: String = SIGNATURES.get(target, "func %s() -> void:" % target)
-		buckets["ready"].append({
-			"kind": "func",
-			"name": target,
-			"text": signature + "\n" + "\n".join(funcs_to_create[target]),
-		})
+		to_add.append({"text": signature + "\n" + "\n".join(funcs_to_create[target])})
 
-	var ordered: Array = []
-	for rank in APPEND_ORDER:
-		ordered.append_array(buckets[rank])
-	if not ordered.is_empty():
-		lines = _append_blocks(lines, ordered)
+	for block in to_add:
+		lines = _insert(lines, block["text"].split("\n"))
 
 	return {"source": "\n".join(lines), "report": report, "error": ""}
 
 
-static func _append_blocks(lines: PackedStringArray, ordered: Array) -> PackedStringArray:
-	lines = _trim_blank_tail(lines)
-	var previous := ""
-	for block in ordered:
-		var kind: String = block.get("kind", "func")
-		var text: String = block["text"]
-		var gap := 0
-		if previous.is_empty():
-			if not lines.is_empty():
-				gap = 2 if kind == "func" else 1
-		elif kind != previous or kind == "func":
-			gap = 2 if kind == "func" else 1
-		for _i in gap:
-			lines.append("")
-		lines.append_array(text.split("\n"))
-		previous = kind
-	lines.append("")
-	return lines
+## Puts `text` where the style guide wants it (see the top of this file) and
+## rewrites the blank lines on both sides of it; everything else stays as is.
+static func _insert(lines: PackedStringArray, text: PackedStringArray) -> PackedStringArray:
+	var rank := _rank(text, 0, text.size() - 1)
+	var members := _members(lines)
+	var next := -1
+	for i in members.size():
+		if members[i]["rank"] == rank:
+			next = i + 1
+	if next == -1:
+		next = members.size()
+		for i in members.size():
+			if members[i]["rank"] > rank:
+				next = i
+				break
+
+	var cut: int = members[next]["start"] if next < members.size() else lines.size()
+	var before := _trim_blank_tail(lines.slice(0, cut))
+	var previous_rank := GAP_FILE_START if before.is_empty() else GAP_HEADER
+	if next > 0:
+		previous_rank = members[next - 1]["rank"]
+
+	var result := before
+	result.append_array(_blank(_gap(previous_rank, rank)))
+	result.append_array(text)
+	if next < members.size():
+		result.append_array(_blank(_gap(rank, members[next]["rank"])))
+		result.append_array(lines.slice(cut))
+	else:
+		result.append("")
+	return result
+
+
+static func _gap(previous_rank: int, rank: int) -> int:
+	if previous_rank == GAP_FILE_START:
+		return 0
+	if previous_rank >= FIRST_METHOD_RANK or rank >= FIRST_METHOD_RANK:
+		return 2
+	if previous_rank == rank:
+		return 0
+	return 1
+
+
+static func _blank(count: int) -> PackedStringArray:
+	var blank := PackedStringArray()
+	blank.resize(count)
+	return blank
+
+
+## The top-level members below the header, in file order: [{"start", "rank"}].
+## A member starts at its doc comment or annotation lines when they touch it.
+static func _members(lines: PackedStringArray) -> Array:
+	var members: Array = []
+	var lead := -1
+	for i in range(_header_end(lines), lines.size()):
+		var line := lines[i]
+		if line.strip_edges().is_empty() or line.begins_with("\t") or line.begins_with(" "):
+			lead = -1
+		elif line.begins_with("#") or _matches(ANNOTATION_ONLY, line):
+			if lead == -1:
+				lead = i
+		elif _matches(DECLARATION, line):
+			var start := i if lead == -1 else lead
+			members.append({"start": start, "rank": _rank(lines, start, i)})
+			lead = -1
+		else:
+			lead = -1
+	return members
+
+
+## Rank of the declaration at `decl`, with the annotation lines from `start` on.
+static func _rank(lines: PackedStringArray, start: int, decl: int) -> int:
+	var annotations := ""
+	var i := start
+	while i <= decl and (lines[i].begins_with("#") or _matches(ANNOTATION_ONLY, lines[i])):
+		if not lines[i].begins_with("#"):
+			annotations += lines[i] + " "
+		i += 1
+	var line := annotations + lines[i]
+	var bare := _strip_annotations(line)
+	if bare.begins_with("signal"):
+		return RANK_SIGNAL
+	if bare.begins_with("enum"):
+		return RANK_ENUM
+	if bare.begins_with("const"):
+		return RANK_CONST
+	if _matches("^static\\s+var\\b", bare):
+		return RANK_STATIC_VAR
+	if bare.begins_with("var"):
+		if _matches("^@export", line):
+			return RANK_EXPORT_VAR
+		if _matches("^(@\\w+(\\([^)]*\\))?\\s+)*@onready\\b", line):
+			return RANK_ONREADY_VAR
+		return RANK_VAR
+	if _matches("^(static\\s+)?func\\s+_static_init\\b", bare):
+		return RANK_STATIC_INIT
+	if _matches("^static\\s+func\\b", bare):
+		return RANK_STATIC_FUNC
+	if bare.begins_with("func"):
+		var func_name := bare.trim_prefix("func").strip_edges().get_slice("(", 0).strip_edges()
+		if func_name in VIRTUAL_ORDER:
+			return RANK_VIRTUAL + VIRTUAL_ORDER.find(func_name)
+		if func_name in OTHER_VIRTUALS:
+			return RANK_OTHER_VIRTUAL
+		return RANK_FUNC
+	if _matches("^class\\s", bare):
+		return RANK_CLASS
+	return RANK_FUNC
+
+
+static func _strip_annotations(line: String) -> String:
+	var re := RegEx.new()
+	re.compile("^(@\\w+(\\([^)]*\\))?\\s*)+")
+	return re.sub(line, "").strip_edges()
 
 
 static func _error(source: String, message: String) -> Dictionary:
