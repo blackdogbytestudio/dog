@@ -123,6 +123,12 @@ makes `grounded` a child of `alive`, `idle` and `run` children of
 `grounded`, and `dead` another root. `fsm`/`pda` are flat (no nesting) and
 every state extends the actor base.
 
+The actor's scene must exist first: `<folder or actor>/<actor>.tscn` under
+`res://scenes/characters/`, with a saved `.gd` script on its root and one
+direct child whose script is the machine of the type (`fsm` → `DogFSM`,
+`pda` → `DogPDA`, `hfsm` → `DogHFSM`, `hpda` → `DogHPDA`; the node name
+doesn't matter). Otherwise nothing is written.
+
 Files are written under `res://scenes/characters/`:
 
 ```

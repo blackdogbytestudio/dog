@@ -50,6 +50,60 @@ func _write(path: String, text: String) -> void:
 	file.close()
 
 
+const MACHINES := {
+	"DogFSM": "res://addons/dog/components/machines/dog_fsm.gd",
+	"DogPDA": "res://addons/dog/components/machines/dog_pda.gd",
+	"DogHFSM": "res://addons/dog/components/machines/dog_hfsm.gd",
+	"DogHPDA": "res://addons/dog/components/machines/dog_hpda.gd",
+}
+
+
+## Writes `<ROOT>/<dir>/<actor>.tscn` whose root has `<actor>.gd` (with
+## `host_source`) and one child per entry of `children` ({node name: class}).
+## dir defaults to the actor. An empty `host_source` leaves the root without script.
+func _scene(
+	actor: String,
+	children := {"DogHPDA": "DogHPDA"},
+	dir := "",
+	host_source := "extends Node\n"
+) -> String:
+	var actor_dir := ROOT.path_join(dir if not dir.is_empty() else actor)
+	DirAccess.make_dir_recursive_absolute(actor_dir)
+	var host_path := actor_dir.path_join(actor + ".gd")
+	var text := "[gd_scene format=3]\n\n"
+	if not host_source.is_empty():
+		_write(host_path, host_source)
+		text += "[ext_resource type=\"Script\" path=\"%s\" id=\"host\"]\n" % host_path
+	var ids := {}
+	for node_name in children:
+		var klass: String = children[node_name]
+		if not ids.has(klass):
+			ids[klass] = "m%d" % ids.size()
+			text += "[ext_resource type=\"Script\" path=\"%s\" id=\"%s\"]\n" % [MACHINES[klass], ids[klass]]
+	text += "\n[node name=\"%s\" type=\"Node\"]\n" % DogNames.to_pascal(actor)
+	if not host_source.is_empty():
+		text += "script = ExtResource(\"host\")\n"
+	for node_name in children:
+		text += "\n[node name=\"%s\" type=\"Node\" parent=\".\"]\nscript = ExtResource(\"%s\")\n" % [node_name, ids[children[node_name]]]
+	var scene_path := actor_dir.path_join(actor + ".tscn")
+	_write(scene_path, text)
+	return scene_path
+
+
+## Every file under `path`, relative to it, sorted.
+func _files(path: String, prefix := "") -> Array:
+	var found := []
+	var dir := DirAccess.open(path)
+	if dir == null:
+		return found
+	for file in dir.get_files():
+		found.append(prefix + file)
+	for sub in dir.get_directories():
+		found.append_array(_files(path.path_join(sub), prefix + sub + "/"))
+	found.sort()
+	return found
+
+
 func _remove(path: String) -> void:
 	var dir := DirAccess.open(path)
 	if dir == null:
@@ -115,6 +169,7 @@ func test_flat_types_accept_multiple_roots() -> void:
 # --- generate ---------------------------------------------------------------
 
 func test_generate_creates_actor_and_nodes() -> void:
+	_scene("enemy", {"DogHPDA": "DogHPDA"}, "enemies")
 	_generate(PackedStringArray([
 		"hpda", "enemy", "--folder", "enemies",
 		"alive", ".grounded", "..idle", ".airborne", "dead",
@@ -133,6 +188,7 @@ func test_generate_creates_actor_and_nodes() -> void:
 
 
 func test_generate_replaces_every_placeholder() -> void:
+	_scene("enemy")
 	_generate(PackedStringArray(["hpda", "enemy", "alive", ".grounded"]))
 	var text := _text(_states("enemy").path_join("enemy_alive_state.gd"))
 	assert_false(text.contains("_CLASS_"))
@@ -143,6 +199,7 @@ func test_generate_replaces_every_placeholder() -> void:
 
 
 func test_generate_skips_existing_and_force_rewrites() -> void:
+	_scene("player")
 	var args := PackedStringArray(["hpda", "player", "alive", ".grounded", "..run"])
 	_generate(args)
 	var run_path := _states("player").path_join("player_run_state.gd")
@@ -158,6 +215,7 @@ func test_generate_skips_existing_and_force_rewrites() -> void:
 
 
 func test_generate_extends_suppresses_actor_base() -> void:
+	_scene("slime", {"DogHPDA": "DogHPDA"}, "enemies/slime")
 	var result = _generate(PackedStringArray([
 		"hpda", "slime", "--extends", "enemy_alive_state",
 		"--folder", "enemies/slime", "jump",
@@ -171,6 +229,7 @@ func test_generate_extends_suppresses_actor_base() -> void:
 
 
 func test_generate_extends_only_applies_to_root_states() -> void:
+	_scene("slime", {"DogHPDA": "DogHPDA"}, "enemies/slime")
 	_generate(PackedStringArray([
 		"hpda", "slime", "--extends", "enemy_alive_state",
 		"--folder", "enemies/slime", "jump", ".air", "..land", "walk",
@@ -186,6 +245,7 @@ func test_generate_extends_only_applies_to_root_states() -> void:
 
 
 func test_generate_flat_states_extend_the_actor_state() -> void:
+	_scene("player", {"DogFSM": "DogFSM"})
 	_generate(PackedStringArray(["fsm", "player", "alive", "dead"]))
 	var dir := _states("player")
 
@@ -195,6 +255,7 @@ func test_generate_flat_states_extend_the_actor_state() -> void:
 
 
 func test_generate_uses_actor_as_host() -> void:
+	_scene("enemy")
 	_generate(PackedStringArray(["hpda", "enemy", "alive"]))
 	assert_string_contains(_text(_states("enemy").path_join("enemy_state.gd")), "host as Enemy")
 	assert_string_contains(_text(_states("enemy").path_join("enemy_alive_state.gd")), "host: Enemy")
@@ -205,15 +266,98 @@ func test_parse_accepts_actor_with_a_digit_part() -> void:
 
 
 func test_generate_capitalizes_the_letter_after_a_number() -> void:
+	_scene("character_body_2d", {"DogFSM": "DogFSM"})
 	_generate(PackedStringArray(["fsm", "character_body_2d", "idle"]))
 	var dir := _states("character_body_2d")
 	assert_string_contains(_text(dir.path_join("character_body_2d_state.gd")), "class_name CharacterBody2DState")
 	assert_string_contains(_text(dir.path_join("character_body_2d_idle_state.gd")), "class_name CharacterBody2DIdleState")
 
 
+# --- validation before writing ---------------------------------------------
+
+func _fails_without_writing(args: PackedStringArray, expected: Array) -> void:
+	var before := _files(ROOT)
+	var result = _generate(args)
+	for text in expected:
+		assert_string_contains(result.error, text)
+	assert_eq(result.written, [])
+	assert_eq(_files(ROOT), before)
+
+
+func test_missing_scene_is_an_error() -> void:
+	_fails_without_writing(PackedStringArray(["hpda", "enemy", "alive"]), ["enemy.tscn", _states("enemy").get_base_dir()])
+
+
+func test_scene_elsewhere_is_an_error_that_suggests_folder() -> void:
+	_scene("slime", {"DogHPDA": "DogHPDA"}, "enemies/slime")
+	_fails_without_writing(PackedStringArray(["hpda", "slime", "alive"]), ["enemies/slime/slime.tscn", "--folder enemies/slime"])
+
+
+func test_root_without_script_is_an_error() -> void:
+	_scene("enemy", {"DogHPDA": "DogHPDA"}, "", "")
+	_fails_without_writing(PackedStringArray(["hpda", "enemy", "alive"]), ["no script"])
+
+
+func test_missing_machine_lists_the_children_with_a_class() -> void:
+	_scene("enemy", {"Brain": "DogFSM"})
+	_fails_without_writing(
+		PackedStringArray(["hpda", "enemy", "alive"]),
+		["no DogHPDA child in enemy.tscn", "children with a class: Brain (DogFSM)"]
+	)
+
+
+func test_machine_type_is_never_switched() -> void:
+	_scene("enemy", {"DogHPDA": "DogHPDA"})
+	_fails_without_writing(PackedStringArray(["pda", "enemy", "alive"]), ["no DogPDA child"])
+
+
+func test_two_machines_of_the_type_is_an_error_listing_them() -> void:
+	_scene("enemy", {"Brain": "DogHPDA", "Spare": "DogHPDA"})
+	_fails_without_writing(PackedStringArray(["hpda", "enemy", "alive"]), ["more than one DogHPDA", "Brain, Spare"])
+
+
+func test_machine_node_name_does_not_matter() -> void:
+	_scene("enemy", {"Brain": "DogHPDA"})
+	var result = _generate(PackedStringArray(["hpda", "enemy", "alive"]))
+	assert_eq(result.error, "")
+	assert_eq(result.machine_node, "Brain")
+
+
+func test_host_without_class_name_is_only_a_warning() -> void:
+	_scene("slime", {"DogHPDA": "DogHPDA"}, "", "extends Node\n")
+	var result = _generate(PackedStringArray(["hpda", "slime", "alive"]))
+	assert_eq(result.error, "")
+	assert_eq(result.warnings, ["states cast host as Slime, but slime.gd has no class_name Slime"])
+
+
+func test_host_with_another_class_name_is_only_a_warning() -> void:
+	_scene("slime", {"DogHPDA": "DogHPDA"}, "", "class_name Enemy\nextends Node\n")
+	var result = _generate(PackedStringArray(["hpda", "slime", "alive"]))
+	assert_eq(result.warnings, ["states cast host as Slime, but slime.gd has no class_name Slime (found: Enemy)"])
+
+
+func test_host_with_the_class_name_has_no_warning() -> void:
+	_scene("slime", {"DogHPDA": "DogHPDA"}, "", "class_name Slime\nextends Node\n")
+	assert_eq(_generate(PackedStringArray(["hpda", "slime", "alive"])).warnings, [])
+
+
+func test_run_prints_warnings() -> void:
+	_scene("slime")
+	var result = _run(PackedStringArray(["hpda", "slime", "alive"]))
+	assert_eq(result[0], OK)
+	assert_has(result[1], "warning: states cast host as Slime, but slime.gd has no class_name Slime")
+
+
+func test_run_prints_validation_errors() -> void:
+	var result = _run(PackedStringArray(["hpda", "enemy", "alive"]))
+	assert_eq(result[0], FAILED)
+	assert_string_contains(result[1][0], "DOG: state: ")
+
+
 # --- run --------------------------------------------------------------------
 
 func test_run_prints_created_and_keeps() -> void:
+	_scene("player", {"DogHPDA": "DogHPDA"}, "", "class_name Player\nextends Node\n")
 	var first = _run(PackedStringArray(["hpda", "player", "alive"]))
 	assert_eq(first[0], OK)
 	assert_eq(first[1].size(), 2)
