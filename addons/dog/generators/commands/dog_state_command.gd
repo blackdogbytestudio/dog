@@ -1,7 +1,8 @@
 @tool
 class_name DogStateCommand
 extends DogCommand
-## state <type> <actor> <tree...> [--folder f] [--host Class] [--extends State] [-f]
+## state <type> <actor> <tree...> [--folder f] [--extends State] [-f]
+## The states' host is always the actor's class (actor in PascalCase).
 
 
 const FLAT_TYPES: PackedStringArray = ["fsm", "pda"]
@@ -15,7 +16,6 @@ class Request:
 	var type: String = ""
 	var actor: String = ""
 	var folder: String = ""
-	var host: String = ""
 	var extends_state: String = ""
 	var force: bool = false
 	var tree: DogStateTree
@@ -31,7 +31,7 @@ func description() -> String:
 
 
 func usage() -> String:
-	return "state <fsm|pda|hfsm|hpda> <actor> <tree...> [--folder path] [--host Class] [--extends State] [-f]"
+	return "state <fsm|pda|hfsm|hpda> <actor> <tree...> [--folder path] [--extends State] [-f]"
 
 
 func run(args: PackedStringArray) -> Error:
@@ -44,7 +44,6 @@ func run(args: PackedStringArray) -> Error:
 		request.type,
 		request.actor,
 		request.folder,
-		request.host,
 		request.extends_state,
 		request.tree,
 		request.force,
@@ -68,7 +67,6 @@ static func parse_request(args: PackedStringArray) -> Request:
 	parser.add_positional_required("type", "", "type: fsm | pda | hfsm | hpda")
 	parser.add_positional_required("actor", "", "actor name (snake_case)")
 	parser.add("--folder", "", "category folder, e.g. enemies/slime -> scenes/characters/enemies/slime/states")
-	parser.add("--host", "", "host class for the states (default: actor)")
 	parser.add("--extends", "", "state class the root states inherit from")
 	parser.add(["--force", "-f"], false, "recreate from scratch")
 	parser.parse(args)  # always pass args: null would read the editor's cmdline
@@ -94,7 +92,6 @@ static func parse_request(args: PackedStringArray) -> Request:
 		return request
 
 	request.folder = parser.get_value("--folder")
-	request.host = parser.get_value("--host")
 	request.extends_state = parser.get_value("--extends")
 	request.force = parser.get_value("--force")
 
