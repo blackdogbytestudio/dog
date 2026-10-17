@@ -115,7 +115,7 @@ panel to list them.
 Creates actor state scripts from the script templates.
 
 ```
-state <fsm|pda|hfsm|hpda> <actor> <tree...> [--folder path] [--host Class] [--extends State] [-f]
+state <fsm|pda|hfsm|hpda> <actor> <tree...> [--folder path] [--extends State] [-f]
 ```
 
 The tree uses dots to express depth — `alive .grounded ..idle ..run dead`
@@ -139,8 +139,10 @@ Existing files are kept, so adding a state to an actor only writes the new
 one — `state hpda player alive .grounded ..run` leaves `player_state.gd`
 and `player_alive_state.gd` alone. Pass `-f` to rewrite them.
 
-`--host Class` types the generated states to that host (default: the actor,
-PascalCased). `--extends State` makes the root states inherit that state
+The states are typed to the actor's class, the actor in PascalCase
+(`skinny_man` → `SkinnyMan`, `character_body_2d` → `CharacterBody2D`); for
+states shared by several actors, run `state` on the parent actor.
+`--extends State` makes the root states inherit that state
 instead of the actor base and skips generating the actor base, e.g.
 `state hpda slime --extends enemy_alive_state --folder enemies/slime jump`.
 

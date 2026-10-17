@@ -22,7 +22,7 @@ func _generate(args: PackedStringArray):
 	var request = _request(args)
 	assert_eq(request.error, "", "unexpected parse error: %s" % request.error)
 	return Generator.generate(
-		request.type, request.actor, request.folder, request.host,
+		request.type, request.actor, request.folder,
 		request.extends_state, request.tree, request.force, ROOT
 	)
 
@@ -71,15 +71,19 @@ func test_parse_accepts_hpda() -> void:
 	assert_eq(request.tree.nodes.size(), 3)
 
 
-func test_parse_reads_folder_host_and_extends() -> void:
+func test_parse_reads_folder_and_extends() -> void:
 	var request = _request(PackedStringArray([
 		"hpda", "slime", "--folder", "enemies/slime",
-		"--host", "Slime", "--extends", "enemy_alive_state", "jump",
+		"--extends", "enemy_alive_state", "jump",
 	]))
 	assert_eq(request.error, "")
 	assert_eq(request.folder, "enemies/slime")
-	assert_eq(request.host, "Slime")
 	assert_eq(request.extends_state, "enemy_alive_state")
+
+
+func test_parse_rejects_host_option() -> void:
+	var request = _request(PackedStringArray(["hpda", "slime", "--host", "Slime", "jump"]))
+	assert_string_contains(request.error, "unknown option '--host'")
 
 
 func test_parse_rejects_hdpa() -> void:
@@ -190,14 +194,10 @@ func test_generate_flat_states_extend_the_actor_state() -> void:
 	assert_string_contains(_text(dir.path_join("player_dead_state.gd")), "extends PlayerState")
 
 
-func test_generate_uses_host_override() -> void:
-	_generate(PackedStringArray(["hpda", "enemy", "--host", "Monster", "alive"]))
-	assert_string_contains(_text(_states("enemy").path_join("enemy_alive_state.gd")), "Monster")
-
-
-func test_generate_uses_actor_as_default_host() -> void:
+func test_generate_uses_actor_as_host() -> void:
 	_generate(PackedStringArray(["hpda", "enemy", "alive"]))
-	assert_string_contains(_text(_states("enemy").path_join("enemy_alive_state.gd")), "Enemy")
+	assert_string_contains(_text(_states("enemy").path_join("enemy_state.gd")), "host as Enemy")
+	assert_string_contains(_text(_states("enemy").path_join("enemy_alive_state.gd")), "host: Enemy")
 
 
 func test_parse_accepts_actor_with_a_digit_part() -> void:

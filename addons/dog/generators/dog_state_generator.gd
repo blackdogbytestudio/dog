@@ -36,7 +36,6 @@ static func generate(
 	type: String,
 	actor: String,
 	folder: String,
-	host: String,
 	base: String,
 	tree: DogStateTree,
 	force: bool,
@@ -45,7 +44,7 @@ static func generate(
 	var result := Result.new()
 
 	var family: Dictionary = FAMILIES[type]
-	var host_class := host if not host.is_empty() else _pascal(actor)
+	var host_class := _pascal(actor)
 	var base_class := _pascal(base) if not base.is_empty() else ""
 
 	var template_dir := _find_template_dir(family["dir"])
