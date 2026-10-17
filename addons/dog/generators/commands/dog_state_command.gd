@@ -1,7 +1,7 @@
 @tool
 class_name DogStateCommand
 extends DogCommand
-## state <type> <actor> <tree...> [--folder f] [--extends State] [-f]
+## state <type> <actor> <tree...> [--folder f] [--extends State] [--initial state] [-f | -u]
 ## The states' host is always the actor's class (actor in PascalCase).
 
 
@@ -17,7 +17,8 @@ class Request:
 	var actor: String = ""
 	var folder: String = ""
 	var extends_state: String = ""
-	var force: bool = false
+	var initial: String = ""
+	var mode: DogApiMerge.Mode = DogApiMerge.Mode.ADD
 	var tree: DogStateTree
 	var error: String = ""
 
@@ -31,7 +32,7 @@ func description() -> String:
 
 
 func usage() -> String:
-	return "state <fsm|pda|hfsm|hpda> <actor> <tree...> [--folder path] [--extends State] [-f]"
+	return "state <fsm|pda|hfsm|hpda> <actor> <tree...> [--folder path] [--extends State] [--initial state] [-f | -u]"
 
 
 func run(args: PackedStringArray) -> Error:
@@ -46,8 +47,9 @@ func run(args: PackedStringArray) -> Error:
 		request.folder,
 		request.extends_state,
 		request.tree,
-		request.force,
-		root
+		request.mode,
+		root,
+		request.initial
 	)
 	if not result.error.is_empty():
 		print_line("DOG: state: %s" % result.error)
@@ -55,10 +57,17 @@ func run(args: PackedStringArray) -> Error:
 
 	for warning in result.warnings:
 		print_line("warning: %s" % warning)
+	print_line("initial: %s" % result.initial)
 	for path in result.written:
 		print_line("created %s" % path)
 	for path in result.skipped:
 		print_line("kept %s" % path)
+	for line in result.report:
+		print_line(line)
+	if result.host_source == result.host_original:
+		print_line("kept %s" % result.host_path)
+	else:
+		print_line("updated %s" % result.host_path)
 	return OK
 
 
@@ -70,7 +79,9 @@ static func parse_request(args: PackedStringArray) -> Request:
 	parser.add_positional_required("actor", "", "actor name (snake_case)")
 	parser.add("--folder", "", "category folder, e.g. enemies/slime -> scenes/characters/enemies/slime/states")
 	parser.add("--extends", "", "state class the root states inherit from")
+	parser.add("--initial", "", "state the machine starts in (default: the deepest, first on a tie)")
 	parser.add(["--force", "-f"], false, "recreate from scratch")
+	parser.add(["--update", "-u"], false, "update the host script (e.g. the init line); state files are left alone")
 	parser.parse(args)  # always pass args: null would read the editor's cmdline
 
 	var missing: Array = parser.get_missing_required_options()
@@ -95,7 +106,20 @@ static func parse_request(args: PackedStringArray) -> Request:
 
 	request.folder = parser.get_value("--folder")
 	request.extends_state = parser.get_value("--extends")
-	request.force = parser.get_value("--force")
+	request.initial = parser.get_value("--initial")
+	if not request.initial.is_empty() and not DogStateTree.is_valid_name(request.initial):
+		request.error = "'%s' is not a valid --initial (a state name, no dots)." % request.initial
+		return request
+
+	var force: bool = parser.get_value("--force")
+	var update: bool = parser.get_value("--update")
+	if force and update:
+		request.error = "use either -f or -u, not both."
+		return request
+	if force:
+		request.mode = DogApiMerge.Mode.FORCE
+	elif update:
+		request.mode = DogApiMerge.Mode.UPDATE
 
 	var tree := DogStateTree.parse(PackedStringArray(parser.unused))
 	if not tree.error.is_empty():
