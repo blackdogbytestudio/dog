@@ -1,0 +1,34 @@
+class_name FixtureJump2D
+extends FixtureBase
+## Test double: a component with signals, args, defaults, a static and internals.
+
+signal landed(speed: float)
+signal _hidden
+
+
+func jump() -> void:
+	pass
+
+
+func jump_with(power: float, times: int = 2) -> void:
+	pass
+
+
+func get_power() -> float:
+	return 1.0
+
+
+func _internal() -> void:
+	pass
+
+
+static func util() -> int:
+	return 1
+
+
+# Property accessors show up as `@power_setter` / `@power_getter` methods.
+var power := 1.0:
+	set(value):
+		power = value
+	get:
+		return power

@@ -1,0 +1,207 @@
+extends GutTest
+## Non-func blocks in DogApiMerge: "signal", "var" and "ready_line" (a line that
+## must exist inside _ready). Appended items are ordered signals, vars, _ready,
+## funcs; same-kind signals/vars stay together, funcs get two blank lines.
+
+const HEAD := "extends CharacterBody2D\n\n\n"
+const VAR_LINE := "@onready var _jump: FixtureJump2D = $Jump"
+const SIGNAL_LINE := "signal landed(speed: float)"
+const CONNECT_LINE := "\t_jump.landed.connect(landed.emit)"
+
+
+func _var(var_name := "_jump") -> Dictionary:
+	return {"kind": "var", "name": var_name, "text": "@onready var %s: FixtureJump2D = $Jump" % var_name}
+
+
+func _signal(signal_name := "landed") -> Dictionary:
+	return {"kind": "signal", "name": signal_name, "text": "signal %s(speed: float)" % signal_name}
+
+
+func _connect(var_name := "_jump", signal_name := "landed") -> Dictionary:
+	return {
+		"kind": "ready_line",
+		"name": "%s.%s" % [var_name, signal_name],
+		"text": "\t%s.%s.connect(%s.emit)" % [var_name, signal_name, signal_name],
+	}
+
+
+func _func(func_name := "jump") -> Dictionary:
+	return {"kind": "func", "name": func_name, "text": "func %s() -> void:\n\t_jump.%s()" % [func_name, func_name]}
+
+
+func _update(source: String, blocks: Array) -> Dictionary:
+	return DogApiMerge.merge(source, blocks, DogApiMerge.Mode.UPDATE)
+
+
+func _force(source: String, blocks: Array) -> Dictionary:
+	return DogApiMerge.merge(source, blocks, DogApiMerge.Mode.FORCE)
+
+
+# --- var -------------------------------------------------------------------
+
+func test_adds_var_after_header_with_one_blank_line():
+	var r := DogApiMerge.merge("extends CharacterBody2D\n", [_var()])
+	assert_eq(r.source, "extends CharacterBody2D\n\n" + VAR_LINE + "\n")
+	assert_eq(r.report, ["add var _jump"])
+
+
+func test_added_var_after_existing_funcs_goes_to_the_end():
+	var source := HEAD + "func a() -> void:\n\tpass\n"
+	var r := DogApiMerge.merge(source, [_var()])
+	assert_eq(r.source, HEAD + "func a() -> void:\n\tpass\n\n" + VAR_LINE + "\n")
+
+
+func test_skips_existing_var_even_if_it_differs():
+	var source := "extends CharacterBody2D\n\n@onready var _jump = $Other\n"
+	var r := DogApiMerge.merge(source, [_var()])
+	assert_eq(r.source, source)
+	assert_eq(r.report, ["skip var _jump"])
+
+
+func test_var_matches_whole_name():
+	var source := "extends CharacterBody2D\n\nvar _jump_high := 1\n"
+	var r := DogApiMerge.merge(source, [_var()])
+	assert_eq(r.report, ["add var _jump"])
+
+
+func test_var_matches_without_onready():
+	var source := "extends CharacterBody2D\n\nvar _jump = null\n"
+	var r := DogApiMerge.merge(source, [_var()])
+	assert_eq(r.report, ["skip var _jump"])
+
+
+func test_update_replaces_a_var_line_that_differs():
+	var source := "extends CharacterBody2D\n\n@onready var _jump = $Other\n\n\nfunc a() -> void:\n\tpass\n"
+	var r := _update(source, [_var()])
+	assert_eq(r.source, "extends CharacterBody2D\n\n" + VAR_LINE + "\n\n\nfunc a() -> void:\n\tpass\n")
+	assert_eq(r.report, ["update var _jump"])
+
+
+# --- signal ----------------------------------------------------------------
+
+func test_adds_signal_after_header():
+	var r := DogApiMerge.merge("extends CharacterBody2D\n", [_signal()])
+	assert_eq(r.source, "extends CharacterBody2D\n\n" + SIGNAL_LINE + "\n")
+	assert_eq(r.report, ["add signal landed"])
+
+
+func test_skips_existing_signal():
+	var source := "extends CharacterBody2D\n\nsignal landed\n"
+	var r := DogApiMerge.merge(source, [_signal()])
+	assert_eq(r.source, source)
+	assert_eq(r.report, ["skip signal landed"])
+
+
+func test_signal_matches_whole_name():
+	var source := "extends CharacterBody2D\n\nsignal landed_hard\n"
+	var r := DogApiMerge.merge(source, [_signal()])
+	assert_eq(r.report, ["add signal landed"])
+
+
+func test_update_replaces_a_signal_line_that_differs():
+	var source := "extends CharacterBody2D\n\nsignal landed\n"
+	var r := _update(source, [_signal()])
+	assert_eq(r.source, "extends CharacterBody2D\n\n" + SIGNAL_LINE + "\n")
+	assert_eq(r.report, ["update signal landed"])
+
+
+# --- ordering and spacing --------------------------------------------------
+
+func test_signals_come_before_vars_regardless_of_block_order():
+	var r := DogApiMerge.merge("extends CharacterBody2D\n", [_var(), _signal()])
+	assert_eq(r.source, "extends CharacterBody2D\n\n" + SIGNAL_LINE + "\n\n" + VAR_LINE + "\n")
+
+
+func test_same_kind_declarations_stay_together():
+	var r := DogApiMerge.merge("extends CharacterBody2D\n", [_signal("landed"), _signal("dashed")])
+	assert_eq(
+		r.source,
+		"extends CharacterBody2D\n\nsignal landed(speed: float)\nsignal dashed(speed: float)\n"
+	)
+
+
+func test_func_after_a_var_gets_two_blank_lines():
+	var r := DogApiMerge.merge("extends CharacterBody2D\n", [_func(), _var()])
+	assert_eq(
+		r.source,
+		"extends CharacterBody2D\n\n" + VAR_LINE + "\n\n\nfunc jump() -> void:\n\t_jump.jump()\n"
+	)
+
+
+# --- ready_line ------------------------------------------------------------
+
+func test_creates_ready_when_it_is_missing():
+	var r := DogApiMerge.merge("extends CharacterBody2D\n", [_connect()])
+	assert_eq(r.source, HEAD + "func _ready() -> void:\n" + CONNECT_LINE + "\n")
+	assert_eq(r.report, ["add func _ready", "add connect _jump.landed"])
+
+
+func test_created_ready_goes_after_vars_and_before_funcs():
+	var r := DogApiMerge.merge("extends CharacterBody2D\n", [_func(), _connect(), _var()])
+	assert_eq(
+		r.source,
+		"extends CharacterBody2D\n\n" + VAR_LINE + "\n\n\nfunc _ready() -> void:\n" + CONNECT_LINE + "\n\n\nfunc jump() -> void:\n\t_jump.jump()\n"
+	)
+	assert_eq(r.report, ["add func jump", "add func _ready", "add connect _jump.landed", "add var _jump"])
+
+
+func test_inserts_connect_under_the_signature_of_an_existing_ready():
+	var source := HEAD + "func _ready() -> void:\n\tpass\n"
+	var r := DogApiMerge.merge(source, [_connect()])
+	assert_eq(r.source, HEAD + "func _ready() -> void:\n" + CONNECT_LINE + "\n\tpass\n")
+	assert_eq(r.report, ["add connect _jump.landed"])
+
+
+func test_skips_connect_line_that_is_already_there():
+	var source := HEAD + "func _ready() -> void:\n" + CONNECT_LINE + "\n\tprint(\"hi\")\n"
+	var r := DogApiMerge.merge(source, [_connect()])
+	assert_eq(r.source, source)
+	assert_eq(r.report, ["skip connect _jump.landed"])
+
+
+func test_inserts_only_the_missing_connect_lines_in_order():
+	var source := HEAD + "func _ready() -> void:\n\t_dash.dashed.connect(dashed.emit)\n\tpass\n"
+	var r := DogApiMerge.merge(source, [_connect("_jump", "landed"), _connect("_dash", "dashed")])
+	assert_eq(
+		r.source,
+		HEAD + "func _ready() -> void:\n\t_jump.landed.connect(landed.emit)\n\t_dash.dashed.connect(dashed.emit)\n\tpass\n"
+	)
+	assert_eq(r.report, ["add connect _jump.landed", "skip connect _dash.dashed"])
+
+
+func test_connect_line_in_another_func_does_not_count():
+	var source := HEAD + "func _ready() -> void:\n\tpass\n\n\nfunc other() -> void:\n" + CONNECT_LINE + "\n"
+	var r := DogApiMerge.merge(source, [_connect()])
+	assert_eq(r.report, ["add connect _jump.landed"])
+
+
+func test_ready_with_body_on_the_same_line_is_an_error():
+	var source := HEAD + "func _ready(): pass\n"
+	var r := DogApiMerge.merge(source, [_connect()])
+	assert_string_contains(r.error, "_ready")
+	assert_string_contains(r.error, "line 4")
+	assert_eq(r.source, source)
+	assert_eq(r.report, [])
+
+
+# --- everything together ---------------------------------------------------
+
+func test_running_twice_with_every_kind_changes_nothing():
+	var blocks := [_signal(), _var(), _connect(), _func()]
+	var first := DogApiMerge.merge("extends CharacterBody2D\n", blocks)
+	var second := DogApiMerge.merge(first.source, blocks)
+	assert_eq(second.source, first.source)
+	assert_eq(
+		second.report,
+		["skip signal landed", "skip var _jump", "skip connect _jump.landed", "skip func jump"]
+	)
+
+
+func test_force_orders_signals_vars_ready_then_funcs_below_the_header():
+	var source := "@tool\nextends CharacterBody2D\n\n\nfunc old() -> void:\n\tpass\n"
+	var r := _force(source, [_func(), _signal(), _connect(), _var()])
+	assert_eq(
+		r.source,
+		"@tool\nextends CharacterBody2D\n\n" + SIGNAL_LINE + "\n\n" + VAR_LINE + "\n\n\nfunc _ready() -> void:\n" + CONNECT_LINE + "\n\n\nfunc jump() -> void:\n\t_jump.jump()\n"
+	)
+	assert_false(r.source.contains("old"))
