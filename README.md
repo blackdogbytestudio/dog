@@ -115,7 +115,7 @@ panel to list them.
 Creates actor state scripts from the script templates.
 
 ```
-state <fsm|pda|hfsm|hpda> <actor> <tree...> [--folder path] [--extends State] [-f]
+state <fsm|pda|hfsm|hpda> <actor> <tree...> [--folder path] [--extends State] [--initial state] [-f | -u]
 ```
 
 The tree uses dots to express depth — `alive .grounded ..idle ..run dead`
@@ -141,9 +141,18 @@ base, from `class.gd`) plus one `enemy_<state>_state.gd` per tree node
 actor name is the folder, so `state hpda player run` writes to
 `res://scenes/characters/player/states/`.
 
+It also wires the machine into the actor's script, in Godot style guide
+order: a `var <state>_state := <Actor><State>State.new()` per state, the
+`@onready` reference to the machine node, `init(<initial>_state)` in
+`_ready` and `update(delta)` as the first line of `_physics_process` (both
+created when missing). The initial state is the deepest one (the first on a
+tie) unless `--initial <state>` says otherwise; the command prints it.
+
 Existing files are kept, so adding a state to an actor only writes the new
 one — `state hpda player alive .grounded ..run` leaves `player_state.gd`
-and `player_alive_state.gd` alone. Pass `-f` to rewrite them.
+and `player_alive_state.gd` alone, and the script only gets what is missing.
+`-u` also updates the script (e.g. the `init` line when the initial state
+changed) and never touches state files. Pass `-f` to rewrite them.
 
 The states are typed to the actor's class, the actor in PascalCase
 (`skinny_man` → `SkinnyMan`, `character_body_2d` → `CharacterBody2D`); for

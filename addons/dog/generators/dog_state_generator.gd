@@ -37,26 +37,84 @@ class Result:
 	var written: Array[String] = []
 	var skipped: Array[String] = []
 	var warnings: Array[String] = []
+	## What the merge did to the host script ("add var alive_state", ...).
+	var report: Array[String] = []
 	var error := ""
 	var scene := ""
 	var host_path := ""
 	var machine_node := ""
+	var initial := ""
+	## Filled by build: path -> text of every state file to write.
+	var files := {}
+	var host_original := ""
+	var host_source := ""
 
 
+## build + write. Nothing is written when build fails.
 static func generate(
 	type: String,
 	actor: String,
 	folder: String,
 	base: String,
 	tree: DogStateTree,
-	force: bool,
-	root: String = ROOT
+	mode := DogApiMerge.Mode.ADD,
+	root: String = ROOT,
+	initial := ""
+) -> Result:
+	var result := build(type, actor, folder, base, tree, mode, root, initial)
+	if not result.error.is_empty():
+		return result
+
+	if not result.files.is_empty():
+		var dir := output_dir(folder, actor, root)
+		var make_error := DirAccess.make_dir_recursive_absolute(dir)
+		if make_error != OK:
+			result.error = "could not create '%s' (error %d)." % [dir, make_error]
+			return result
+	for path in result.files:
+		var write_error := _write_text(path, result.files[path])
+		if write_error != OK:
+			result.error = "could not write '%s' (error %d)." % [path, write_error]
+			return result
+		result.written.append(path)
+
+	if result.host_source != result.host_original:
+		var host_error := _write_text(result.host_path, result.host_source)
+		if host_error != OK:
+			result.error = "could not write '%s' (error %d)." % [result.host_path, host_error]
+			return result
+
+	_scan()
+	return result
+
+
+## Everything except writing: checks the scene, picks the initial state, renders
+## the state files that are missing (all of them with FORCE) and merges the
+## machine plumbing into the host script. Returns a Result whose `files` and
+## `host_source` are what generate writes.
+static func build(
+	type: String,
+	actor: String,
+	folder: String,
+	base: String,
+	tree: DogStateTree,
+	mode := DogApiMerge.Mode.ADD,
+	root: String = ROOT,
+	initial := ""
 ) -> Result:
 	var result := Result.new()
 
 	var family: Dictionary = FAMILIES[type]
 	var host_class := _pascal(actor)
 	var base_class := _pascal(base) if not base.is_empty() else ""
+
+	result.initial = initial if not initial.is_empty() else default_initial(tree)
+	var state_names: Array[String] = []
+	for node in tree.nodes:
+		state_names.append(node.name)
+	if result.initial not in state_names:
+		result.error = "--initial '%s' is not in the tree. states: %s." % [result.initial, ", ".join(state_names)]
+		return result
 
 	var template_dir := _find_template_dir(family["dir"])
 	if template_dir.is_empty():
@@ -68,19 +126,15 @@ static func generate(
 		return result
 
 	var dir := output_dir(folder, actor, root)
-	var make_error := DirAccess.make_dir_recursive_absolute(dir)
-	if make_error != OK:
-		result.error = "could not create '%s' (error %d)." % [dir, make_error]
-		return result
-
+	var force := mode == DogApiMerge.Mode.FORCE
 	# Without --extends the actor base is the root of the hierarchy.
 	if base_class.is_empty():
-		var base_write := _write(
-			result, dir, file_name(actor), template_dir.path_join(ACTOR_TEMPLATE),
+		var base_error := _plan_file(
+			result, dir.path_join(file_name(actor)), template_dir.path_join(ACTOR_TEMPLATE),
 			state_class(actor), host_class, family["base"], force
 		)
-		if not base_write.is_empty():
-			result.error = base_write
+		if not base_error.is_empty():
+			result.error = base_error
 			return result
 
 	for node in tree.nodes:
@@ -92,16 +146,71 @@ static func generate(
 		else:
 			parent = state_class(actor)
 
-		var write_error := _write(
-			result, dir, file_name(actor, node.name), template_dir.path_join(NODE_TEMPLATE),
+		var node_error := _plan_file(
+			result, dir.path_join(file_name(actor, node.name)), template_dir.path_join(NODE_TEMPLATE),
 			state_class(actor, node.name), host_class, parent, force
 		)
-		if not write_error.is_empty():
-			result.error = write_error
+		if not node_error.is_empty():
+			result.error = node_error
 			return result
 
-	_scan()
+	result.host_original = _read_text(result.host_path)
+	var blocks := host_blocks(actor, tree, family["machine"], result.machine_node, result.initial)
+	var merged := DogApiMerge.merge(result.host_original, blocks, mode)
+	var merge_error: String = merged["error"]
+	if not merge_error.is_empty():
+		result.error = "%s: %s." % [result.host_path.get_file(), merge_error]
+		result.files.clear()
+		return result
+	result.host_source = merged["source"]
+	result.report.assign(merged["report"])
 	return result
+
+
+## The deepest state; the first declared one on a tie.
+static func default_initial(tree: DogStateTree) -> String:
+	var best: DogStateTree.StateNode = null
+	for node in tree.nodes:
+		if best == null or node.depth > best.depth:
+			best = node
+	return best.name if best != null else ""
+
+
+## The machine plumbing for the host script, as DogApiMerge blocks: one
+## `var <state>_state := <Actor><State>State.new()` per state (tree order), the
+## `@onready` reference to the machine node, `init(<initial>_state)` in `_ready`
+## and `update(delta)` at the top of `_physics_process`.
+static func host_blocks(
+	actor: String,
+	tree: DogStateTree,
+	machine_class: String,
+	machine_node: String,
+	initial: String
+) -> Array:
+	var blocks: Array = []
+	for node in tree.nodes:
+		blocks.append({
+			"kind": "var",
+			"name": node.name + "_state",
+			"text": "var %s_state := %s.new()" % [node.name, state_class(actor, node.name)],
+		})
+	var machine_var := DogApiRender.var_name(machine_class, machine_node)
+	blocks.append(DogApiRender.ref_block(machine_var, machine_class, machine_node))
+	blocks.append({
+		"kind": "func_line",
+		"func": "_ready",
+		"name": machine_var + ".init",
+		"match": machine_var + ".init(",
+		"text": "\t%s.init(%s_state)" % [machine_var, initial],
+	})
+	blocks.append({
+		"kind": "func_line",
+		"func": "_physics_process",
+		"name": machine_var + ".update",
+		"match": machine_var + ".update(",
+		"text": "\t%s.update(delta)" % machine_var,
+	})
+	return blocks
 
 
 static func output_dir(folder: String, actor: String, root: String = ROOT) -> String:
@@ -194,18 +303,17 @@ static func state_class(actor: String, node: String = "") -> String:
 	return "%s%sState" % [_pascal(actor), _pascal(node)]
 
 
-# Returns an error message, or "" on success (written/skipped go into result).
-static func _write(
+# Puts the rendered file in result.files, or the path in result.skipped when it
+# exists and force is off. Returns an error message, or "".
+static func _plan_file(
 	result: Result,
-	dir: String,
-	file: String,
+	path: String,
 	template: String,
 	cls: String,
 	host: String,
 	parent: String,
 	force: bool
 ) -> String:
-	var path := dir.path_join(file)
 	if FileAccess.file_exists(path) and not force:
 		result.skipped.append(path)
 		return ""
@@ -214,11 +322,7 @@ static func _write(
 	if source.is_empty():
 		return "template '%s' is missing or empty." % template
 
-	var write_error := _write_text(path, _substitute(source, cls, host, parent))
-	if write_error != OK:
-		return "could not write '%s' (error %d)." % [path, write_error]
-
-	result.written.append(path)
+	result.files[path] = _substitute(source, cls, host, parent)
 	return ""
 
 

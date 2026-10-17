@@ -23,7 +23,7 @@ func _generate(args: PackedStringArray):
 	assert_eq(request.error, "", "unexpected parse error: %s" % request.error)
 	return Generator.generate(
 		request.type, request.actor, request.folder,
-		request.extends_state, request.tree, request.force, ROOT
+		request.extends_state, request.tree, request.mode, ROOT, request.initial
 	)
 
 
@@ -354,14 +354,149 @@ func test_run_prints_validation_errors() -> void:
 	assert_string_contains(result[1][0], "DOG: state: ")
 
 
+# --- initial state ------------------------------------------------------------
+
+func _initial(args: Array) -> String:
+	var request = _request(PackedStringArray(args))
+	return Generator.default_initial(request.tree) if request.initial.is_empty() else request.initial
+
+
+func test_initial_defaults_to_the_deepest_state() -> void:
+	assert_eq(_initial(["hpda", "p", "alive", ".grounded", "..run", "...run_ground", "..idle", "dead"]), "run_ground")
+
+
+func test_initial_tie_picks_the_first_declared() -> void:
+	assert_eq(_initial(["hpda", "p", "alive", ".run", ".idle", "dead", ".gone"]), "run")
+
+
+func test_initial_on_a_flat_tree_is_the_first() -> void:
+	assert_eq(_initial(["fsm", "p", "idle", "run"]), "idle")
+
+
+func test_initial_flag_overrides_the_default() -> void:
+	_scene("enemy")
+	var result = _generate(PackedStringArray(["hpda", "enemy", "--initial", "alive", "alive", ".grounded"]))
+	assert_eq(result.initial, "alive")
+	assert_string_contains(result.host_source, "_dog_hpda.init(alive_state)")
+
+
+func test_unknown_initial_is_an_error_listing_the_states() -> void:
+	_scene("enemy")
+	_fails_without_writing(
+		PackedStringArray(["hpda", "enemy", "--initial", "nope", "alive", ".grounded"]),
+		["--initial 'nope'", "states: alive, grounded"]
+	)
+
+
+func test_initial_with_dots_is_a_parse_error() -> void:
+	assert_ne(_request(PackedStringArray(["hpda", "enemy", "--initial", ".alive", "alive"])).error, "")
+
+
+func test_force_with_update_is_a_parse_error() -> void:
+	assert_string_contains(_request(PackedStringArray(["hpda", "enemy", "-f", "-u", "alive"])).error, "-f or -u")
+
+
+# --- host plumbing --------------------------------------------------------------
+
+const ENEMY_HOST := """extends Node
+
+var alive_state := EnemyAliveState.new()
+var grounded_state := EnemyGroundedState.new()
+var dead_state := EnemyDeadState.new()
+
+@onready var _dog_hpda: DogHPDA = $DogHPDA
+
+
+func _ready() -> void:
+	_dog_hpda.init(grounded_state)
+
+
+func _physics_process(delta: float) -> void:
+	_dog_hpda.update(delta)
+"""
+
+
+func _host(actor := "enemy", dir := "") -> String:
+	return _text(ROOT.path_join(dir if not dir.is_empty() else actor).path_join(actor + ".gd"))
+
+
+func test_plumbing_is_added_to_the_host_in_style_guide_order() -> void:
+	_scene("enemy")
+	var result = _generate(PackedStringArray(["hpda", "enemy", "alive", ".grounded", "dead"]))
+	assert_eq(result.error, "")
+	assert_eq(_host(), ENEMY_HOST)
+	assert_eq(result.report, [
+		"add var alive_state", "add var grounded_state", "add var dead_state", "add var _dog_hpda",
+		"add func _ready", "add line _dog_hpda.init", "add func _physics_process", "add line _dog_hpda.update",
+	])
+
+
+func test_machine_reference_uses_the_real_node_name() -> void:
+	_scene("enemy", {"Brain": "DogHPDA"})
+	_generate(PackedStringArray(["hpda", "enemy", "alive"]))
+	assert_string_contains(_host(), "@onready var _dog_hpda: DogHPDA = $Brain\n")
+
+
+func test_update_goes_on_top_of_an_existing_physics_process() -> void:
+	_scene("enemy", {"DogHPDA": "DogHPDA"}, "", "extends Node\n\n\nfunc _physics_process(delta: float) -> void:\n\tmove()\n")
+	_generate(PackedStringArray(["hpda", "enemy", "alive"]))
+	assert_string_contains(_host(), "func _physics_process(delta: float) -> void:\n\t_dog_hpda.update(delta)\n\tmove()\n")
+
+
+func test_running_twice_changes_nothing_the_second_time() -> void:
+	_scene("enemy")
+	var args := PackedStringArray(["hpda", "enemy", "alive", ".grounded", "dead"])
+	_generate(args)
+	var second = _generate(args)
+	assert_eq(second.written, [])
+	assert_eq(second.host_source, second.host_original)
+	for line in second.report:
+		assert_true(line.begins_with("skip "), line)
+
+
+func test_reference_already_written_by_api_is_not_duplicated() -> void:
+	_scene("enemy", {"DogHPDA": "DogHPDA"}, "", "extends Node\n\n@onready var _dog_hpda: DogHPDA = $DogHPDA\n")
+	var result = _generate(PackedStringArray(["hpda", "enemy", "alive"]))
+	assert_has(result.report, "skip var _dog_hpda")
+	assert_eq(_host().count("var _dog_hpda"), 1)
+
+
+func test_add_keeps_the_init_line_when_the_initial_changes() -> void:
+	_scene("enemy")
+	_generate(PackedStringArray(["hpda", "enemy", "alive", ".grounded"]))
+	var result = _generate(PackedStringArray(["hpda", "enemy", "alive", ".grounded", "..run"]))
+	assert_has(result.report, "skip line _dog_hpda.init")
+	assert_string_contains(_host(), "_dog_hpda.init(grounded_state)")
+
+
+func test_update_changes_the_init_line_and_leaves_state_files_alone() -> void:
+	_scene("enemy")
+	_generate(PackedStringArray(["hpda", "enemy", "alive", ".grounded"]))
+	var grounded := _states("enemy").path_join("enemy_grounded_state.gd")
+	_write(grounded, "custom")
+	var result = _generate(PackedStringArray(["hpda", "enemy", "-u", "--initial", "alive", "alive", ".grounded"]))
+	assert_has(result.report, "update line _dog_hpda.init")
+	assert_string_contains(_host(), "\t_dog_hpda.init(alive_state)\n")
+	assert_false(_host().contains("init(grounded_state)"))
+	assert_eq(_text(grounded), "custom")
+	assert_eq(result.written, [])
+
+
+func test_host_merge_error_writes_nothing() -> void:
+	_scene("enemy", {"DogHPDA": "DogHPDA"}, "", "extends Node\n\n\nfunc _ready(): pass\n")
+	_fails_without_writing(PackedStringArray(["hpda", "enemy", "alive"]), ["enemy.gd", "_ready"])
+
+
 # --- run --------------------------------------------------------------------
 
 func test_run_prints_created_and_keeps() -> void:
 	_scene("player", {"DogHPDA": "DogHPDA"}, "", "class_name Player\nextends Node\n")
 	var first = _run(PackedStringArray(["hpda", "player", "alive"]))
 	assert_eq(first[0], OK)
-	assert_eq(first[1].size(), 2)
-	assert_string_contains(first[1][0], "created")
+	assert_eq(first[1][0], "initial: alive")
+	assert_has(first[1], "created %s" % _states("player").path_join("player_state.gd"))
+	assert_has(first[1], "created %s" % _states("player").path_join("player_alive_state.gd"))
+	assert_has(first[1], "updated %s" % ROOT.path_join("player/player.gd"))
 
 	var second = _run(PackedStringArray(["hpda", "player", "alive", ".grounded"]))
 	assert_eq(second[0], OK)
