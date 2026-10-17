@@ -12,11 +12,6 @@ extends RefCounted
 
 const DEFAULT_ROOT := "res://scenes/characters"
 
-# snake_case where a part may start with a digit (character_body_2d), unlike
-# DogStateTree's rule, which is meant for state names.
-static var _valid_name := RegEx.create_from_string("^[a-z][a-z0-9]*(_[a-z0-9]+)*\\z")
-
-
 ## build + write. Nothing is written on error, when `write` is false, or when
 ## the merged source equals the file.
 static func generate(
@@ -177,14 +172,14 @@ static func candidates(host: Node) -> Array:
 ## `<root>/<folder>` (or all of `<root>`) for `<actor>.tscn`. More than one match
 ## is an error listing them. Returns {path, error}.
 static func find_scene(actor: String, folder := "", root := DEFAULT_ROOT) -> Dictionary:
-	if not is_valid_name(actor):
+	if not DogNames.is_valid_name(actor):
 		return {"path": "", "error": "'%s' is not a valid actor name (use snake_case)." % actor}
 	var base := normalize_root(root)
 	if base.is_empty():
 		return {"path": "", "error": "'%s' is not a valid root." % root}
 	if not folder.is_empty():
 		for part in folder.split("/"):
-			if not is_valid_name(part):
+			if not DogNames.is_valid_name(part):
 				return {"path": "", "error": "'%s' is not a valid folder (snake_case names separated by /)." % folder}
 
 	var actor_dir := folder if not folder.is_empty() else actor
@@ -201,10 +196,6 @@ static func find_scene(actor: String, folder := "", root := DEFAULT_ROOT) -> Dic
 	if matches.size() > 1:
 		return {"path": "", "error": "more than one %s.tscn under %s: %s (use --folder)." % [actor, search_in, ", ".join(matches)]}
 	return {"path": matches[0], "error": ""}
-
-
-static func is_valid_name(name: String) -> bool:
-	return _valid_name.search(name) != null
 
 
 ## `scenes` -> `res://scenes`; trailing slash dropped; "" when it has `..` or is empty.

@@ -89,7 +89,7 @@ static func parse_request(args: PackedStringArray) -> Request:
 		tokens.append(token)
 
 	request.actor = parser.get_value("actor")
-	if not DogApiGenerator.is_valid_name(request.actor):
+	if not DogNames.is_valid_name(request.actor):
 		request.error = "'%s' is not a valid actor name (use snake_case)." % request.actor
 		return request
 
@@ -101,7 +101,7 @@ static func parse_request(args: PackedStringArray) -> Request:
 			component = prefix + "_" + component
 		if not suffix.is_empty():
 			component = component + "_" + suffix
-		if not DogApiGenerator.is_valid_name(component):
+		if not DogNames.is_valid_name(component):
 			request.error = "'%s' is not a valid component name (use snake_case, e.g. dog_jump_2d)." % component
 			return request
 		request.components.append(component)

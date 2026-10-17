@@ -89,7 +89,7 @@ static func parse_request(args: PackedStringArray) -> Request:
 		return request
 
 	request.actor = parser.get_value("actor")
-	if not DogStateTree.is_valid_name(request.actor):
+	if not DogNames.is_valid_name(request.actor):
 		request.error = "'%s' is not a valid actor name (use snake_case)." % request.actor
 		return request
 

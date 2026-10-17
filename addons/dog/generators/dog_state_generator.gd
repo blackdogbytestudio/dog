@@ -134,7 +134,7 @@ static func _write(
 
 
 static func _pascal(name: String) -> String:
-	return name.to_pascal_case()
+	return DogNames.to_pascal(name)
 
 
 static func _find_template_dir(family_dir: String) -> String:

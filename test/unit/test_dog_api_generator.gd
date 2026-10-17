@@ -399,13 +399,6 @@ func test_generate_does_not_write_on_error():
 	assert_eq(_read(TMP + "/actor/actor.gd"), "extends CharacterBody2D\n\n\nfunc _ready(): pass\n")
 
 
-func test_is_valid_name_accepts_digit_parts_and_rejects_bad_shapes():
-	for ok in ["player", "character_body_2d", "dog_jump_2d", "a1"]:
-		assert_true(DogApiGenerator.is_valid_name(ok), ok)
-	for bad in ["", "Player", "_player", "player_", "a__b", "2d", "a-b", "a b", "a/b"]:
-		assert_false(DogApiGenerator.is_valid_name(bad), bad)
-
-
 func test_plan_never_forwards_property_accessors():
 	var host := _host({"Jump": JUMP_SCRIPT})
 	var p := _plan(host)
