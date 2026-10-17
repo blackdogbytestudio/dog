@@ -1,0 +1,295 @@
+@tool
+class_name DogApiGenerator
+extends RefCounted
+## Fills the root script of a scene with an API that forwards to the components
+## you name (direct children of the root, found by their class_name in snake_case:
+## `dog_jump_2d` -> DogJump2D): one `@onready` reference per component, a forwarding
+## func per public method, and a re-declared + connected signal per public signal.
+##
+## Convention: `<root>/[<folder>/]<actor>/<actor>.tscn`, with a script already
+## attached to the root node (create it in Godot first, so `extends` is right).
+## Members starting with `_` are internal and never forwarded.
+
+const DEFAULT_ROOT := "res://scenes/characters"
+
+# snake_case where a part may start with a digit (character_body_2d), unlike
+# DogStateTree's rule, which is meant for state names.
+static var _valid_name := RegEx.create_from_string("^[a-z][a-z0-9]*(_[a-z0-9]+)*\\z")
+
+
+## build + write. Nothing is written on error, when `write` is false, or when
+## the merged source equals the file.
+static func generate(
+	actor: String,
+	components: Array,
+	folder := "",
+	root := DEFAULT_ROOT,
+	mode := DogApiMerge.Mode.ADD,
+	write := true
+) -> Dictionary:
+	var result := build(actor, components, folder, root, mode)
+	var error: String = result["error"]
+	if not error.is_empty() or not write or result["source"] == result["original"]:
+		return result
+	var file := FileAccess.open(result["path"], FileAccess.WRITE)
+	if file == null:
+		result["error"] = "could not write %s" % result["path"]
+		return result
+	file.store_string(result["source"])
+	file.close()
+	_refresh_editor()
+	return result
+
+
+## Everything except the write. Returns {path, scene, original, source, report,
+## warnings, blocks, error}; `path` is the host script.
+static func build(
+	actor: String,
+	components: Array,
+	folder := "",
+	root := DEFAULT_ROOT,
+	mode := DogApiMerge.Mode.ADD
+) -> Dictionary:
+	var found := find_scene(actor, folder, root)
+	var find_error: String = found["error"]
+	if not find_error.is_empty():
+		return _failure(find_error)
+	var scene_path: String = found["path"]
+
+	var packed := load(scene_path) as PackedScene
+	if packed == null:
+		return _failure("could not load %s" % scene_path)
+	var host := packed.instantiate()
+	if host == null:
+		return _failure("could not instantiate %s" % scene_path)
+
+	var host_script := host.get_script() as Script
+	if host_script == null:
+		host.free()
+		return _failure("the root node of %s has no script: attach one in Godot first" % scene_path)
+	var host_path := host_script.resource_path
+	if host_path.is_empty() or host_path.contains("::"):
+		host.free()
+		return _failure("the script of %s is built into the scene: save it as a .gd file first" % scene_path)
+
+	if components.is_empty():
+		var message := "no components given. components in %s: %s" % [scene_path, ", ".join(candidates(host))]
+		host.free()
+		return _failure(message)
+
+	var planned := plan(host, components)
+	host.free()
+	var plan_error: String = planned["error"]
+	if not plan_error.is_empty():
+		return _failure(plan_error)
+
+	var file := FileAccess.open(host_path, FileAccess.READ)
+	if file == null:
+		return _failure("could not read %s" % host_path)
+	var original := file.get_as_text()
+	file.close()
+
+	var merged := DogApiMerge.merge(original, planned["blocks"], mode)
+	return {
+		"path": host_path,
+		"scene": scene_path,
+		"original": original,
+		"source": merged["source"],
+		"report": merged["report"],
+		"warnings": planned["warnings"],
+		"blocks": planned["blocks"],
+		"error": merged["error"],
+	}
+
+
+## Builds the blocks for the named components (snake_case class names, in the
+## order given; repeats are taken once). Returns {blocks, warnings, error}: any
+## name that is not exactly one child of `host` is an error and nothing is planned.
+## A member already provided by an earlier component is skipped with a warning, so
+## the generated script still compiles.
+static func plan(host: Node, components: Array) -> Dictionary:
+	var blocks: Array = []
+	var warnings: Array = []
+	var owners := {}
+	var taken := {}
+
+	var children := _children_by_class(host)
+	for component in components:
+		var component_name := String(component)
+		if taken.has(component_name):
+			continue
+		taken[component_name] = true
+
+		if not children.has(component_name):
+			var reason := "%s is not a child of %s: add the node to the scene first (children with a class: %s)." % [
+				component_name, host.name, ", ".join(candidates(host))
+			]
+			if not _class_exists(component_name):
+				reason = "no class in the project matches '%s'." % component_name
+			return {"blocks": [], "warnings": [], "error": reason}
+		var nodes: Array = children[component_name]
+		if nodes.size() > 1:
+			var node_names := PackedStringArray()
+			for node in nodes:
+				node_names.append(str(node.name))
+			return {
+				"blocks": [],
+				"warnings": [],
+				"error": "more than one %s under %s: %s. A component class must appear once." % [component_name, host.name, ", ".join(node_names)],
+			}
+
+		var child: Node = nodes[0]
+		var script := child.get_script() as Script
+		var node_name := str(child.name)
+		var var_name := DogApiRender.var_name(String(script.get_global_name()), node_name)
+		owners["var " + var_name] = node_name
+		blocks.append(DogApiRender.ref_block(var_name, String(script.get_global_name()), node_name))
+
+		for info in script.get_script_signal_list():
+			var signal_name := String(info["name"])
+			if not _claim(owners, "signal", signal_name, node_name, warnings):
+				continue
+			blocks.append(DogApiRender.signal_block(info))
+			blocks.append(DogApiRender.connect_block(var_name, signal_name))
+
+		for method in script.get_script_method_list():
+			if (int(method["flags"]) & METHOD_FLAG_STATIC) != 0:
+				continue
+			var method_name := String(method["name"])
+			if not _claim(owners, "func", method_name, node_name, warnings):
+				continue
+			blocks.append(DogApiRender.func_block(var_name, method))
+
+	return {"blocks": blocks, "warnings": warnings, "error": ""}
+
+
+## snake_case class names of the direct children of `host` that have a script with
+## a class_name: what can be named in `components`.
+static func candidates(host: Node) -> Array:
+	var names := _children_by_class(host).keys()
+	names.sort()
+	return names
+
+
+## Finds the scene like the state generator finds the actor folder: the actor's
+## directory is `<root>/<folder>` (or `<root>/<actor>` without a folder), and the
+## scene is `<actor>.tscn` inside it. When it isn't exactly there, searches below
+## `<root>/<folder>` (or all of `<root>`) for `<actor>.tscn`. More than one match
+## is an error listing them. Returns {path, error}.
+static func find_scene(actor: String, folder := "", root := DEFAULT_ROOT) -> Dictionary:
+	if not is_valid_name(actor):
+		return {"path": "", "error": "'%s' is not a valid actor name (use snake_case)." % actor}
+	var base := normalize_root(root)
+	if base.is_empty():
+		return {"path": "", "error": "'%s' is not a valid root." % root}
+	if not folder.is_empty():
+		for part in folder.split("/"):
+			if not is_valid_name(part):
+				return {"path": "", "error": "'%s' is not a valid folder (snake_case names separated by /)." % folder}
+
+	var actor_dir := folder if not folder.is_empty() else actor
+	var exact := "%s/%s/%s.tscn" % [base, actor_dir, actor]
+	if FileAccess.file_exists(exact):
+		return {"path": exact, "error": ""}
+
+	var search_in := base if folder.is_empty() else base + "/" + folder
+	var matches: Array = []
+	_find_files(search_in, actor + ".tscn", matches)
+	matches.sort()
+	if matches.is_empty():
+		return {"path": "", "error": "no %s.tscn found under %s." % [actor, search_in]}
+	if matches.size() > 1:
+		return {"path": "", "error": "more than one %s.tscn under %s: %s (use --folder)." % [actor, search_in, ", ".join(matches)]}
+	return {"path": matches[0], "error": ""}
+
+
+static func is_valid_name(name: String) -> bool:
+	return _valid_name.search(name) != null
+
+
+## `scenes` -> `res://scenes`; trailing slash dropped; "" when it has `..` or is empty.
+static func normalize_root(root: String) -> String:
+	var path := root.strip_edges()
+	if path.is_empty() or ".." in path.replace("://", "/").split("/"):
+		return ""
+	while path.ends_with("/") and not path.ends_with("://"):
+		path = path.trim_suffix("/")
+	if not (path.begins_with("res://") or path.begins_with("user://")):
+		path = "res://" + path.trim_prefix("/")
+	return path
+
+
+## {snake_case class name: [child nodes]} for the direct children of `host`, in
+## child order. Children without a script, or without a class_name, can't be named.
+static func _children_by_class(host: Node) -> Dictionary:
+	var result := {}
+	for child in host.get_children():
+		var script := child.get_script() as Script
+		if script == null:
+			continue
+		var class_name_text := String(script.get_global_name())
+		if class_name_text.is_empty():
+			continue
+		var key := class_name_text.to_snake_case()
+		if not result.has(key):
+			result[key] = []
+		result[key].append(child)
+	return result
+
+
+static func _class_exists(snake_name: String) -> bool:
+	for entry in ProjectSettings.get_global_class_list():
+		if String(entry["class"]).to_snake_case() == snake_name:
+			return true
+	return false
+
+
+static func _claim(owners: Dictionary, kind: String, member: String, node_name: String, warnings: Array) -> bool:
+	if not DogApiRender.is_public(member):
+		return false
+	var key := "%s %s" % [kind, member]
+	if owners.has(key):
+		if owners[key] != node_name:
+			warnings.append("%s %s of %s was skipped: %s already provides it" % [kind, member, node_name, owners[key]])
+		return false
+	owners[key] = node_name
+	return true
+
+
+static func _find_files(dir_path: String, file_name: String, found: Array) -> void:
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var entry := dir.get_next()
+	while not entry.is_empty():
+		if entry.begins_with("."):
+			pass
+		elif dir.current_is_dir():
+			_find_files(dir_path + "/" + entry, file_name, found)
+		elif entry == file_name:
+			found.append(dir_path + "/" + entry)
+		entry = dir.get_next()
+	dir.list_dir_end()
+
+
+## Lets the editor notice the rewritten script (and offer to reload it if open).
+static func _refresh_editor() -> void:
+	if not Engine.is_editor_hint():
+		return
+	var fs := EditorInterface.get_resource_filesystem()
+	if fs != null and not fs.is_scanning():
+		fs.scan()
+
+
+static func _failure(message: String) -> Dictionary:
+	return {
+		"path": "",
+		"scene": "",
+		"original": "",
+		"source": "",
+		"report": [],
+		"warnings": [],
+		"blocks": [],
+		"error": message,
+	}
