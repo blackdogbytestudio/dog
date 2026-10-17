@@ -11,6 +11,10 @@ extends RefCounted
 ## saved .gd script on its root and exactly one direct child whose script is the
 ## machine class of `type` (see FAMILIES). Everything is checked before any file
 ## is written.
+##
+## FORCE puts things back to factory: the whole `states/` folder of the actor is
+## deleted (only that computed folder, see is_safe_states_dir), the states are
+## recreated and the host script is rewritten below its header.
 
 const ROOT := "res://scenes/characters"
 const STATES_DIR := "states"
@@ -46,6 +50,8 @@ class Result:
 	var initial := ""
 	## Filled by build: path -> text of every state file to write.
 	var files := {}
+	## Filled by build with FORCE: the states folder to delete first ("" = none).
+	var delete_dir := ""
 	var host_original := ""
 	var host_source := ""
 
@@ -64,6 +70,12 @@ static func generate(
 	var result := build(type, actor, folder, base, tree, mode, root, initial)
 	if not result.error.is_empty():
 		return result
+
+	if not result.delete_dir.is_empty():
+		var remove_error := _remove_dir(result.delete_dir)
+		if remove_error != OK:
+			result.error = "could not delete '%s' (error %d)." % [result.delete_dir, remove_error]
+			return result
 
 	if not result.files.is_empty():
 		var dir := output_dir(folder, actor, root)
@@ -127,6 +139,16 @@ static func build(
 
 	var dir := output_dir(folder, actor, root)
 	var force := mode == DogApiMerge.Mode.FORCE
+	var dropped_files: Array[String] = []
+	if force and DirAccess.dir_exists_absolute(dir):
+		if not is_safe_states_dir(dir, root):
+			result.error = "refusing to delete '%s': not an actor states folder inside %s." % [dir, root]
+			return result
+		result.delete_dir = dir
+		for file in _files_below(dir):
+			dropped_files.append("drop file %s/%s" % [STATES_DIR, file])
+		# Everything is recreated from the templates.
+		result.skipped.clear()
 	# Without --extends the actor base is the root of the hierarchy.
 	if base_class.is_empty():
 		var base_error := _plan_file(
@@ -163,8 +185,55 @@ static func build(
 		result.files.clear()
 		return result
 	result.host_source = merged["source"]
-	result.report.assign(merged["report"])
+	result.report.assign(dropped_files + Array(merged["report"]))
 	return result
+
+
+## True only for `<root>/<actor dir>/states`: inside `root`, no `..`, with at
+## least one folder between the root and `states`.
+static func is_safe_states_dir(dir: String, root: String) -> bool:
+	var base := root.trim_suffix("/") + "/"
+	if not dir.begins_with(base):
+		return false
+	var relative := dir.trim_prefix(base)
+	if not relative.ends_with("/" + STATES_DIR):
+		return false
+	var actor_dir := relative.trim_suffix("/" + STATES_DIR)
+	for part in actor_dir.split("/"):
+		if part.is_empty() or part == "." or part == "..":
+			return false
+	return true
+
+
+## Every file below `dir`, relative to it, sorted.
+static func _files_below(dir: String, prefix := "") -> Array[String]:
+	var found: Array[String] = []
+	var access := DirAccess.open(dir)
+	if access == null:
+		return found
+	access.include_hidden = true
+	for file in access.get_files():
+		found.append(prefix + file)
+	for sub in access.get_directories():
+		found.append_array(_files_below(dir.path_join(sub), prefix + sub + "/"))
+	found.sort()
+	return found
+
+
+static func _remove_dir(dir: String) -> Error:
+	var access := DirAccess.open(dir)
+	if access == null:
+		return DirAccess.get_open_error()
+	access.include_hidden = true
+	for sub in access.get_directories():
+		var sub_error := _remove_dir(dir.path_join(sub))
+		if sub_error != OK:
+			return sub_error
+	for file in access.get_files():
+		var file_error := access.remove(file)
+		if file_error != OK:
+			return file_error
+	return DirAccess.remove_absolute(dir)
 
 
 ## The deepest state; the first declared one on a tie.

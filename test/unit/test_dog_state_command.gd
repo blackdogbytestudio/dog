@@ -487,6 +487,66 @@ func test_host_merge_error_writes_nothing() -> void:
 	_fails_without_writing(PackedStringArray(["hpda", "enemy", "alive"]), ["enemy.gd", "_ready"])
 
 
+# --- -f: back to factory ----------------------------------------------------------
+
+func test_force_deletes_the_whole_states_folder_and_reports_each_file() -> void:
+	_scene("enemy", {"DogHPDA": "DogHPDA"}, "", "extends Node\n\n\nfunc mine() -> void:\n\tpass\n")
+	_generate(PackedStringArray(["hpda", "enemy", "alive", ".grounded"]))
+	var dir := _states("enemy")
+	_write(dir.path_join("enemy_old_state.gd"), "old")
+	DirAccess.make_dir_recursive_absolute(dir.path_join("sub"))
+	_write(dir.path_join("sub/notes.txt"), "x")
+
+	var result = _generate(PackedStringArray(["hpda", "enemy", "-f", "alive"]))
+	assert_eq(result.error, "")
+	assert_eq(_files(dir), ["enemy_alive_state.gd", "enemy_state.gd"])
+	for file in ["enemy_alive_state.gd", "enemy_grounded_state.gd", "enemy_old_state.gd", "enemy_state.gd", "sub/notes.txt"]:
+		assert_has(result.report, "drop file states/" + file)
+	assert_has(result.report, "drop func mine")
+	assert_has(result.report, "drop var grounded_state")
+	assert_false(_host().contains("mine"))
+	assert_false(_host().contains("grounded"))
+
+
+func test_force_without_a_states_folder_just_creates_it() -> void:
+	_scene("enemy")
+	var result = _generate(PackedStringArray(["hpda", "enemy", "-f", "alive"]))
+	assert_eq(result.error, "")
+	assert_eq(_files(_states("enemy")), ["enemy_alive_state.gd", "enemy_state.gd"])
+
+
+func test_force_deletes_nothing_when_validation_fails() -> void:
+	_scene("enemy")
+	_generate(PackedStringArray(["hpda", "enemy", "alive"]))
+	_scene("enemy", {"Brain": "DogFSM"})
+	var before := _files(ROOT)
+	var result = _generate(PackedStringArray(["hpda", "enemy", "-f", "alive"]))
+	assert_string_contains(result.error, "no DogHPDA child")
+	assert_eq(_files(ROOT), before)
+
+
+func test_add_never_deletes_files_in_states() -> void:
+	_scene("enemy")
+	_generate(PackedStringArray(["hpda", "enemy", "alive"]))
+	_write(_states("enemy").path_join("enemy_old_state.gd"), "old")
+	_generate(PackedStringArray(["hpda", "enemy", "alive"]))
+	assert_true(FileAccess.file_exists(_states("enemy").path_join("enemy_old_state.gd")))
+
+
+func test_folder_with_parent_traversal_is_a_parse_error() -> void:
+	assert_ne(_request(PackedStringArray(["hpda", "enemy", "--folder", "../x", "alive"])).error, "")
+	assert_ne(_request(PackedStringArray(["hpda", "enemy", "--folder", "a/../b", "alive"])).error, "")
+
+
+func test_only_the_actor_states_folder_inside_the_root_can_be_deleted() -> void:
+	assert_true(Generator.is_safe_states_dir(ROOT + "/enemies/slime/states", ROOT))
+	assert_false(Generator.is_safe_states_dir(ROOT + "/enemies/../states", ROOT))
+	assert_false(Generator.is_safe_states_dir("user://elsewhere/slime/states", ROOT))
+	assert_false(Generator.is_safe_states_dir(ROOT + "/slime", ROOT))
+	assert_false(Generator.is_safe_states_dir(ROOT + "/states", ROOT))
+	assert_false(Generator.is_safe_states_dir(ROOT + "_evil/slime/states", ROOT))
+
+
 # --- run --------------------------------------------------------------------
 
 func test_run_prints_created_and_keeps() -> void:

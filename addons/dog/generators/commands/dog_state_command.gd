@@ -80,7 +80,7 @@ static func parse_request(args: PackedStringArray) -> Request:
 	parser.add("--folder", "", "category folder, e.g. enemies/slime -> scenes/characters/enemies/slime/states")
 	parser.add("--extends", "", "state class the root states inherit from")
 	parser.add("--initial", "", "state the machine starts in (default: the deepest, first on a tie)")
-	parser.add(["--force", "-f"], false, "recreate from scratch")
+	parser.add(["--force", "-f"], false, "back to factory: delete states/, recreate it, rewrite the script below its header")
 	parser.add(["--update", "-u"], false, "update the host script (e.g. the init line); state files are left alone")
 	parser.parse(args)  # always pass args: null would read the editor's cmdline
 
@@ -105,6 +105,11 @@ static func parse_request(args: PackedStringArray) -> Request:
 		return request
 
 	request.folder = parser.get_value("--folder")
+	if not request.folder.is_empty():
+		for part in request.folder.split("/"):
+			if not DogNames.is_valid_name(part):
+				request.error = "'%s' is not a valid folder (snake_case names separated by /)." % request.folder
+				return request
 	request.extends_state = parser.get_value("--extends")
 	request.initial = parser.get_value("--initial")
 	if not request.initial.is_empty() and not DogStateTree.is_valid_name(request.initial):
