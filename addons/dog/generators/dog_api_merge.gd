@@ -8,7 +8,9 @@ extends RefCounted
 ## - "var" / "signal": `text` is the one-line declaration.
 ## - "func_line": `text` is one indented line that must exist inside the func
 ##   named by "func"; it goes to the top of the body, and the func is created when
-##   missing. `name` is only used in the report.
+##   missing. `name` is only used in the report. With "match" (a prefix), a body
+##   line starting with it (indentation ignored) counts as present: ADD keeps it,
+##   UPDATE replaces it when it differs from `text`.
 ## - "ready_line": a "func_line" for `_ready` (reported as "connect").
 ##
 ## Modes:
@@ -84,6 +86,7 @@ static func merge(source: String, blocks: Array, mode := Mode.ADD) -> Dictionary
 	var to_replace: Array = []
 	var lines_to_insert := {}  # func name -> PackedStringArray, for funcs that exist
 	var funcs_to_create := {}  # func name -> PackedStringArray, in block order
+	var lines_to_update: Array = []  # func_line blocks whose "match" line differs
 
 	# Pass 1 only reads: classify every block and validate before touching anything.
 	for block in blocks:
@@ -104,7 +107,15 @@ static func merge(source: String, blocks: Array, mode := Mode.ADD) -> Dictionary
 				continue
 			if not lines[func_start].strip_edges().ends_with(":"):
 				return _error(source, "func %s (line %d) has its body on the same line: can't add lines under it" % [target, func_start + 1])
-			if _has_line(lines, func_start, text):
+			var match_prefix: String = block.get("match", "")
+			var matched := -1 if match_prefix.is_empty() else _find_line(lines, func_start, match_prefix)
+			if matched != -1:
+				if mode == Mode.UPDATE and lines[matched].strip_edges() != text.strip_edges():
+					lines_to_update.append({"func": target, "match": match_prefix, "text": text})
+					report.append("update " + label)
+				else:
+					report.append("skip " + label)
+			elif _has_line(lines, func_start, text):
 				report.append("skip " + label)
 			else:
 				if not lines_to_insert.has(target):
@@ -138,6 +149,9 @@ static func merge(source: String, blocks: Array, mode := Mode.ADD) -> Dictionary
 		var start := _find(lines, kind, block["name"])
 		var end: int = _span_for(kind, lines, start)["end"]
 		lines = lines.slice(0, start) + text.split("\n") + lines.slice(end + 1)
+
+	for line in lines_to_update:
+		lines[_find_line(lines, _find(lines, "func", line["func"]), line["match"])] = line["text"]
 
 	for target in lines_to_insert:
 		var at := _find(lines, "func", target) + 1
@@ -336,6 +350,16 @@ static func _span_for(kind: String, lines: PackedStringArray, start: int) -> Dic
 	if kind == "func":
 		return _span(lines, start)
 	return {"end": start, "bad_line": -1}
+
+
+## Index of the first body line of the func at `start` that begins with `prefix`
+## (indentation ignored), or -1.
+static func _find_line(lines: PackedStringArray, start: int, prefix: String) -> int:
+	var end: int = _span(lines, start)["end"]
+	for i in range(start + 1, end + 1):
+		if lines[i].strip_edges().begins_with(prefix):
+			return i
+	return -1
 
 
 ## Is `text` (compared without surrounding whitespace) in the body of the func at `start`?

@@ -268,3 +268,42 @@ func test_func_lines_for_two_funcs_go_to_their_own_funcs():
 		HEAD + "func _ready() -> void:\n\t_dog_hpda.init(idle_state)\n\tpass\n\n\nfunc _physics_process(delta: float) -> void:\n" + UPDATE_LINE + "\n\tpass\n"
 	)
 	assert_eq(r.report, ["add line _dog_hpda.update", "add line _dog_hpda.init"])
+
+
+# --- func_line with "match": one line per prefix, -u replaces it ------------
+
+const INIT_PREFIX := "_dog_hpda.init("
+
+
+func _init_line(state: String) -> Dictionary:
+	var line := _func_line("_ready", "_dog_hpda.init", "\t_dog_hpda.init(%s)" % state)
+	line["match"] = INIT_PREFIX
+	return line
+
+
+func test_match_keeps_a_differing_line_in_add_mode():
+	var source := HEAD + "func _ready() -> void:\n\t_dog_hpda.init(idle_state)\n"
+	var r := DogApiMerge.merge(source, [_init_line("run_state")])
+	assert_eq(r.source, source)
+	assert_eq(r.report, ["skip line _dog_hpda.init"])
+
+
+func test_match_replaces_a_differing_line_in_update_mode():
+	var source := HEAD + "func _ready() -> void:\n\tprint(1)\n\t_dog_hpda.init(idle_state)\n\tprint(2)\n"
+	var r := _update(source, [_init_line("run_state")])
+	assert_eq(r.source, HEAD + "func _ready() -> void:\n\tprint(1)\n\t_dog_hpda.init(run_state)\n\tprint(2)\n")
+	assert_eq(r.report, ["update line _dog_hpda.init"])
+
+
+func test_match_skips_an_equal_line_in_update_mode():
+	var source := HEAD + "func _ready() -> void:\n\t_dog_hpda.init(run_state)\n"
+	var r := _update(source, [_init_line("run_state")])
+	assert_eq(r.source, source)
+	assert_eq(r.report, ["skip line _dog_hpda.init"])
+
+
+func test_match_adds_at_the_top_when_no_line_has_the_prefix():
+	var source := HEAD + "func _ready() -> void:\n\tpass\n"
+	var r := _update(source, [_init_line("run_state")])
+	assert_eq(r.source, HEAD + "func _ready() -> void:\n\t_dog_hpda.init(run_state)\n\tpass\n")
+	assert_eq(r.report, ["add line _dog_hpda.init"])
